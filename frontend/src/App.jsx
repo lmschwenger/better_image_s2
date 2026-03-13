@@ -63,6 +63,40 @@ function DrawControl({ setAoi, featureGroupRef }) {
   return null;
 }
 
+// Helper component to handle map synchronization (zoom/visibility)
+function MapUpdater({ aoi, featureGroupRef }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!aoi || !featureGroupRef.current) return;
+
+    // Check if the layer is already in the feature group (to avoid duplicates from drawing)
+    const existingLayers = featureGroupRef.current.getLayers();
+    const isAlreadyPresent = existingLayers.some(layer => {
+      try {
+        return JSON.stringify(layer.toGeoJSON().geometry) === JSON.stringify(aoi.geometry || aoi);
+      } catch (e) { return false; }
+    });
+
+    if (!isAlreadyPresent) {
+      // Clear and add the imported AOI
+      featureGroupRef.current.clearLayers();
+      const geojsonLayer = L.geoJSON(aoi);
+      geojsonLayer.eachLayer(layer => {
+        featureGroupRef.current.addLayer(layer);
+      });
+
+      // Zoom to the new AOI
+      const bounds = geojsonLayer.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [20, 20] });
+      }
+    }
+  }, [aoi, map, featureGroupRef]);
+
+  return null;
+}
+
 function App() {
   const [taskType, setTaskType] = useState('SDB');
   const [startDate, setStartDate] = useState('2023-01-01');
@@ -123,10 +157,31 @@ function App() {
       reader.onload = (event) => {
         try {
           const json = JSON.parse(event.target.result);
-          setAoi(json);
-          // Note: Rendering imported GeoJSON on map requires slightly more logic 
-          // (a <GeoJSON /> component), which we'll add if needed.
-          alert("GeoJSON loaded successfully!");
+          
+          // Normalize the GeoJSON before setting it
+          let normalizedAoi = null;
+          
+          if (json.type === "FeatureCollection" && json.features && json.features.length > 0) {
+            normalizedAoi = json.features[0]; // Take the first feature
+          } else if (json.type === "Feature") {
+            normalizedAoi = json;
+          } else if (json.type === "Polygon" || json.type === "MultiPolygon") {
+            // Wrap raw geometry in a Feature object
+            normalizedAoi = {
+              type: "Feature",
+              properties: {},
+              geometry: json
+            };
+          }
+
+        if (normalizedAoi) {
+            setAoi(normalizedAoi);
+            // The MapUpdater component will pick up the change and handle the map sync
+            alert("GeoJSON loaded successfully! The map has been zoomed to your AOI.");
+          } else {
+            alert("The GeoJSON file does not contain a valid recognizable geometry/feature.");
+          }
+          
         } catch (err) {
           alert("Invalid GeoJSON file.");
         }
@@ -202,13 +257,14 @@ function App() {
 
       {/* Map Area */}
       <div className="map-container">
-        <MapContainer center={[24.5551, -81.7800]} zoom={10} scrollWheelZoom={true}>
+        <MapContainer center={[60.0, -20.0]} zoom={3} scrollWheelZoom={true}>
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           />
           <FeatureGroup ref={featureGroupRef} />
           <DrawControl setAoi={setAoi} featureGroupRef={featureGroupRef} />
+          <MapUpdater aoi={aoi} featureGroupRef={featureGroupRef} />
         </MapContainer>
       </div>
     </div>
