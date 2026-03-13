@@ -11,6 +11,7 @@ app = FastAPI(title="Coastal S2 App API")
 
 app.add_middleware(
     CORSMiddleware,
+    # In production, you'd replace "*" with your Vercel URL
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
