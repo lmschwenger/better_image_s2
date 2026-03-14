@@ -105,9 +105,60 @@ function App() {
   const [aoi, setAoi] = useState(null);
   const [jobInfo, setJobInfo] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState(null);
   
   const featureGroupRef = useRef();
   const navigate = useNavigate();
+
+  // Load user session on mount
+  useEffect(() => {
+    // Check for tokens in the URL first (coming back from OAuth)
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlToken = urlParams.get('token');
+    const urlUser = urlParams.get('user');
+
+    if (urlToken && urlUser) {
+      localStorage.setItem('coastal_token', urlToken);
+      localStorage.setItem('coastal_user', urlUser);
+      // Clean up the URL so the token isn't visible
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      try {
+        setUser(JSON.parse(urlUser));
+      } catch (e) {
+        console.error("Failed to parse user from URL", e);
+      }
+    } else {
+      const storedUser = localStorage.getItem('coastal_user');
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch (e) {
+          localStorage.removeItem('coastal_user');
+        }
+      }
+    }
+
+    // Check if we came from Job History with a "Show on Map" request
+    const preloadedAoi = localStorage.getItem('coastal_load_aoi');
+    if (preloadedAoi) {
+      try {
+        const parsedAoi = JSON.parse(preloadedAoi);
+        setAoi(parsedAoi);
+        localStorage.removeItem('coastal_load_aoi');
+        // The MapUpdater will handle zooming/drawing
+      } catch (e) {
+        console.error("Failed to load preloaded AOI", e);
+      }
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('coastal_token');
+    localStorage.removeItem('coastal_user');
+    setUser(null);
+    navigate('/login');
+  };
 
   const handleDeleted = (e) => {
     setAoi(null);
@@ -130,11 +181,17 @@ function App() {
     };
     
     try {
-      // Use environment variable for API URL to support both local dev and production deployment
-      const apiUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      const token = localStorage.getItem('coastal_token');
+      
+      const headers = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${apiUrl}/query`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: headers,
         body: JSON.stringify(queryPayload)
       });
       
@@ -214,9 +271,25 @@ function App() {
     <div className="app-container">
       {/* Control Panel / Sidebar */}
       <div className="sidebar glass-panel">
-        <div>
-          <h1>Coastal Sentinel 🛰️</h1>
-          <p>Retrieve the best S2 imagery for your tasks</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: '1.5rem' }}>Coastal Sentinel 🛰️</h1>
+            <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#94a3b8' }}>Retrieve the best S2 imagery</p>
+          </div>
+          
+          <div style={{ textAlign: 'right' }}>
+            {user ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                <span style={{ fontSize: '0.75rem', color: '#6366f1', fontWeight: 'bold' }}>👤 {user.display_name}</span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => navigate('/history')} style={smallBtnStyle}>History</button>
+                  <button onClick={handleLogout} style={smallBtnStyle}>Logout</button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => navigate('/login')} style={loginBtnStyle}>Sign In</button>
+            )}
+          </div>
         </div>
 
         <div className="input-group">
@@ -308,3 +381,25 @@ function App() {
 }
 
 export default App
+
+const smallBtnStyle = {
+  background: 'rgba(255, 255, 255, 0.05)',
+  border: '1px solid #334155',
+  borderRadius: '6px',
+  color: '#94a3b8',
+  cursor: 'pointer',
+  padding: '4px 10px',
+  fontSize: '0.75rem',
+  fontWeight: '600',
+};
+
+const loginBtnStyle = {
+  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+  border: 'none',
+  borderRadius: '8px',
+  color: 'white',
+  cursor: 'pointer',
+  padding: '8px 16px',
+  fontSize: '0.85rem',
+  fontWeight: '600',
+};
