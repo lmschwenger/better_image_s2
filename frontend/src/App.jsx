@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { MapContainer, TileLayer, FeatureGroup, useMap } from 'react-leaflet'
+import { useNavigate } from 'react-router-dom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet-draw/dist/leaflet.draw.css'
@@ -102,10 +103,11 @@ function App() {
   const [startDate, setStartDate] = useState('2023-01-01');
   const [endDate, setEndDate] = useState('2023-12-31');
   const [aoi, setAoi] = useState(null);
-  const [results, setResults] = useState([]);
+  const [jobInfo, setJobInfo] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   
   const featureGroupRef = useRef();
+  const navigate = useNavigate();
 
   const handleDeleted = (e) => {
     setAoi(null);
@@ -140,7 +142,25 @@ function App() {
       
       const data = await response.json();
       console.log("Results:", data);
-      setResults(data.scored_images || []);
+      const scored = data.scored_images || [];
+      
+      // Store results and job metadata for the results page
+      localStorage.setItem('coastal_results', JSON.stringify(scored));
+      localStorage.setItem('coastal_job', JSON.stringify({
+        startDate,
+        endDate,
+        taskType,
+        resultCount: scored.length,
+        executedAt: new Date().toLocaleTimeString(),
+      }));
+      
+      setJobInfo({
+        startDate,
+        endDate,
+        taskType,
+        resultCount: scored.length,
+        executedAt: new Date().toLocaleTimeString(),
+      });
     } catch (err) {
       console.error(err);
       alert("Failed to query backend. Ensure FastAPI is running.");
@@ -223,34 +243,50 @@ function App() {
           <input type="file" accept=".geojson,application/json" onChange={handleFileUpload} />
         </div>
 
-        <button onClick={handleQuery} disabled={isLoading}>
-          {isLoading ? "Searching..." : "Search Imagery"}
+        <button onClick={handleQuery} disabled={isLoading} style={isLoading ? {opacity: 0.6} : {}}>
+          {isLoading ? (
+            <span>⏳ Searching...</span>
+          ) : (
+            <span>🔍 Search Imagery</span>
+          )}
         </button>
 
-        {/* Results Showcase */}
-        {results.length > 0 && (
-          <div className="results-container" style={{ marginTop: '20px', overflowY: 'auto' }}>
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#f8fafc' }}>Top Results</h3>
-            {results.map((result, idx) => (
-              <div key={idx} className="result-card" style={{
-                background: 'rgba(15, 23, 42, 0.8)', padding: '12px', borderRadius: '8px', 
-                marginBottom: '10px', border: '1px solid #334155', cursor: 'pointer'
-              }} onClick={() => window.open(result.thumbnail_url, '_blank')}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 'bold', color: '#e2e8f0' }}>{result.scene_id}</span>
-                  <span style={{ 
-                    background: result.score > 80 ? '#22c55e' : '#f59e0b', 
-                    color: 'white', padding: '2px 8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold' 
-                  }}>
-                    {result.score}/100
-                  </span>
-                </div>
-                <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span>🌊 FES2022 Tide: <strong>{result.tide_level}m</strong></span>
-                  <span>☁️ Cloud Cover: {result.cloud_cover}%</span>
-                </div>
-              </div>
-            ))}
+        {/* Job Window */}
+        {jobInfo && (
+          <div style={{
+            marginTop: '16px',
+            background: 'rgba(99, 102, 241, 0.08)',
+            border: '1px solid rgba(99, 102, 241, 0.3)',
+            borderRadius: '10px',
+            padding: '14px',
+          }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#a5b4fc', letterSpacing: '0.05em', textTransform: 'uppercase' }}>📋 Job Complete</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem', color: '#94a3b8' }}>
+              <span>📅 Period: <strong style={{color:'#e2e8f0'}}>{jobInfo.startDate} → {jobInfo.endDate}</strong></span>
+              <span>🛰️ Task: <strong style={{color:'#e2e8f0'}}>{jobInfo.taskType}</strong></span>
+              <span>🔢 Results: <strong style={{color: jobInfo.resultCount > 0 ? '#22c55e' : '#ef4444'}}>{jobInfo.resultCount} scenes found</strong></span>
+              <span>⏱ Executed: <strong style={{color:'#e2e8f0'}}>{jobInfo.executedAt}</strong></span>
+            </div>
+            {jobInfo.resultCount > 0 && (
+              <button
+                onClick={() => navigate('/results')}
+                style={{
+                  marginTop: '12px',
+                  width: '100%',
+                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  padding: '10px',
+                  fontSize: '0.9rem',
+                  fontWeight: '600',
+                  letterSpacing: '0.03em',
+                }}
+              >
+                View Results →
+              </button>
+            )}
           </div>
         )}
       </div>

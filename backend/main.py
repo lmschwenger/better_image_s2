@@ -81,10 +81,11 @@ def process_aoi(query: AOIQuery):
         
         results.append({
             "scene_id": scene['id'],
+            "datetime": formatted_date,
             "score": score,
             "tide_level": tide_level,
             "cloud_cover": scene['cloud_cover_aoi'],
-            "thumbnail_url": copernicus_url
+            "copernicus_url": copernicus_url
         })
         
     # Sort highest top score

@@ -8,8 +8,13 @@ CDSE_STAC_URL = "https://catalogue.dataspace.copernicus.eu/stac"
 def search_sentinel2_scenes(geojson_aoi: dict, start_date: str, end_date: str, max_items: int = 20):
     """
     Queries the real Copernicus Data Space Ecosystem STAC API for Sentinel-2 L2A imagery.
+    Accepts either a raw GeoJSON Geometry or a GeoJSON Feature (defensively unwraps).
     """
     logger.info(f"Querying CDSE STAC API from {start_date} to {end_date}")
+    
+    # Defensively unwrap a Feature object to its geometry
+    if geojson_aoi.get("type") == "Feature":
+        geojson_aoi = geojson_aoi["geometry"]
     
     try:
         client = Client.open(CDSE_STAC_URL)
