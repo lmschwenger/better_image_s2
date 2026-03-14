@@ -120,7 +120,7 @@ function App() {
     }
     
     setIsLoading(true);
-    setResults([]);
+    setJobInfo(null);
     
     const queryPayload = {
       task_type: taskType,
