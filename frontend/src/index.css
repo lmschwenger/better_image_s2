@@ -35,7 +35,7 @@ body, html {
   width: 400px;
   position: absolute;
   top: 20px;
-  left: 70px;
+  left: 20px;
   bottom: 20px;
   z-index: 1000; /* Above Leaflet */
   display: flex;

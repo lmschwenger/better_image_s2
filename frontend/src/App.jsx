@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { MapContainer, TileLayer, FeatureGroup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, FeatureGroup, useMap, ZoomControl } from 'react-leaflet'
 import { useNavigate } from 'react-router-dom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -17,6 +17,7 @@ function DrawControl({ setAoi, featureGroupRef }) {
     if (!map || !featureGroupRef.current) return;
 
     const drawControl = new L.Control.Draw({
+      position: 'topright',
       edit: {
         featureGroup: featureGroupRef.current,
       },
@@ -33,6 +34,8 @@ function DrawControl({ setAoi, featureGroupRef }) {
     map.addControl(drawControl);
 
     const handleCreated = (e) => {
+      // Clear any existing layers first to enforce a single geometry
+      featureGroupRef.current.clearLayers();
       const layer = e.layer;
       featureGroupRef.current.addLayer(layer);
       setAoi(layer.toGeoJSON());
@@ -106,7 +109,7 @@ function App() {
   const [jobInfo, setJobInfo] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState(null);
-  
+
   const featureGroupRef = useRef();
   const navigate = useNavigate();
 
@@ -122,7 +125,7 @@ function App() {
       localStorage.setItem('coastal_user', urlUser);
       // Clean up the URL so the token isn't visible
       window.history.replaceState({}, document.title, window.location.pathname);
-      
+
       try {
         setUser(JSON.parse(urlUser));
       } catch (e) {
@@ -169,21 +172,21 @@ function App() {
       alert("Please draw an AOI on the map first.");
       return;
     }
-    
+
     setIsLoading(true);
     setJobInfo(null);
-    
+
     const queryPayload = {
       task_type: taskType,
       start_date: startDate,
       end_date: endDate,
       geojson: aoi
     };
-    
+
     try {
       const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
       const token = localStorage.getItem('coastal_token');
-      
+
       const headers = { "Content-Type": "application/json" };
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
@@ -194,13 +197,13 @@ function App() {
         headers: headers,
         body: JSON.stringify(queryPayload)
       });
-      
+
       if (!response.ok) throw new Error("API Request Failed");
-      
+
       const data = await response.json();
       console.log("Results:", data);
       const scored = data.scored_images || [];
-      
+
       // Store results and job metadata for the results page
       localStorage.setItem('coastal_results', JSON.stringify(scored));
       localStorage.setItem('coastal_job', JSON.stringify({
@@ -210,7 +213,7 @@ function App() {
         resultCount: scored.length,
         executedAt: new Date().toLocaleTimeString(),
       }));
-      
+
       setJobInfo({
         startDate,
         endDate,
@@ -234,10 +237,10 @@ function App() {
       reader.onload = (event) => {
         try {
           const json = JSON.parse(event.target.result);
-          
+
           // Normalize the GeoJSON before setting it
           let normalizedAoi = null;
-          
+
           if (json.type === "FeatureCollection" && json.features && json.features.length > 0) {
             normalizedAoi = json.features[0]; // Take the first feature
           } else if (json.type === "Feature") {
@@ -251,14 +254,14 @@ function App() {
             };
           }
 
-        if (normalizedAoi) {
+          if (normalizedAoi) {
             setAoi(normalizedAoi);
             // The MapUpdater component will pick up the change and handle the map sync
             alert("GeoJSON loaded successfully! The map has been zoomed to your AOI.");
           } else {
             alert("The GeoJSON file does not contain a valid recognizable geometry/feature.");
           }
-          
+
         } catch (err) {
           alert("Invalid GeoJSON file.");
         }
@@ -273,10 +276,12 @@ function App() {
       <div className="sidebar glass-panel">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.5rem' }}>Coastal Sentinel 🛰️</h1>
+            <h1 style={{ margin: 0, fontSize: '1.5rem' }}>
+              Better Image<span style={{ fontWeight: 800 }}>[S]2</span> 🛰️
+            </h1>
             <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#94a3b8' }}>Retrieve the best S2 imagery</p>
           </div>
-          
+
           <div style={{ textAlign: 'right' }}>
             {user ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
@@ -316,7 +321,7 @@ function App() {
           <input type="file" accept=".geojson,application/json" onChange={handleFileUpload} />
         </div>
 
-        <button onClick={handleQuery} disabled={isLoading} style={isLoading ? {opacity: 0.6} : {}}>
+        <button onClick={handleQuery} disabled={isLoading} style={isLoading ? { opacity: 0.6 } : {}}>
           {isLoading ? (
             <span>⏳ Searching...</span>
           ) : (
@@ -335,10 +340,10 @@ function App() {
           }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#a5b4fc', letterSpacing: '0.05em', textTransform: 'uppercase' }}>📋 Job Complete</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem', color: '#94a3b8' }}>
-              <span>📅 Period: <strong style={{color:'#e2e8f0'}}>{jobInfo.startDate} → {jobInfo.endDate}</strong></span>
-              <span>🛰️ Task: <strong style={{color:'#e2e8f0'}}>{jobInfo.taskType}</strong></span>
-              <span>🔢 Results: <strong style={{color: jobInfo.resultCount > 0 ? '#22c55e' : '#ef4444'}}>{jobInfo.resultCount} scenes found</strong></span>
-              <span>⏱ Executed: <strong style={{color:'#e2e8f0'}}>{jobInfo.executedAt}</strong></span>
+              <span>📅 Period: <strong style={{ color: '#e2e8f0' }}>{jobInfo.startDate} → {jobInfo.endDate}</strong></span>
+              <span>🛰️ Task: <strong style={{ color: '#e2e8f0' }}>{jobInfo.taskType}</strong></span>
+              <span>🔢 Results: <strong style={{ color: jobInfo.resultCount > 0 ? '#22c55e' : '#ef4444' }}>{jobInfo.resultCount} scenes found</strong></span>
+              <span>⏱ Executed: <strong style={{ color: '#e2e8f0' }}>{jobInfo.executedAt}</strong></span>
             </div>
             {jobInfo.resultCount > 0 && (
               <button
@@ -366,11 +371,12 @@ function App() {
 
       {/* Map Area */}
       <div className="map-container">
-        <MapContainer center={[60.0, -20.0]} zoom={3} scrollWheelZoom={true}>
+        <MapContainer center={[60.0, -20.0]} zoom={3} scrollWheelZoom={true} zoomControl={false}>
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           />
+          <ZoomControl position="topright" />
           <FeatureGroup ref={featureGroupRef} />
           <DrawControl setAoi={setAoi} featureGroupRef={featureGroupRef} />
           <MapUpdater aoi={aoi} featureGroupRef={featureGroupRef} />

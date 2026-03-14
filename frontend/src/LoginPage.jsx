@@ -30,7 +30,9 @@ function LoginPage() {
       }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{ fontSize: '3rem', marginBottom: '12px' }}>🛰️</div>
-          <h1 style={{ color: '#f1f5f9', margin: '0 0 8px', fontSize: '1.6rem', fontWeight: '700' }}>Coastal Sentinel</h1>
+          <h1 style={{ color: '#f1f5f9', margin: '0 0 8px', fontSize: '1.6rem', fontWeight: '700' }}>
+            Better Image<span style={{ fontWeight: 800 }}>[S]2</span>
+          </h1>
           <p style={{ color: '#94a3b8', margin: 0, fontSize: '0.9rem' }}>
             Sign in to save your coastal processing jobs
           </p>
@@ -55,7 +57,7 @@ function LoginPage() {
           {/* GitHub Login Button */}
           <button
             onClick={() => handleLogin('github')}
-            style={{ ...buttonStyle, background: '#24292f' }}
+            style={{ ...buttonStyle, background: '#24292f', color: '#ffffff' }}
             onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
             onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
           >
