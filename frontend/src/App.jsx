@@ -142,6 +142,20 @@ function App() {
       }
     }
 
+    // Always fetch fresh user data to get accurate credits and daily drip
+    const currentToken = localStorage.getItem('coastal_token');
+    if (currentToken) {
+        const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+        fetch(`${apiUrl}/me`, {
+            headers: { "Authorization": `Bearer ${currentToken}` }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.id) setUser(data);
+        })
+        .catch(err => console.error("Failed to fetch fresh user data", err));
+    }
+
     // Check if we came from Job History with a "Show on Map" request
     const preloadedAoi = localStorage.getItem('coastal_load_aoi');
     if (preloadedAoi) {
@@ -197,8 +211,22 @@ function App() {
         headers: headers,
         body: JSON.stringify(queryPayload)
       });
+      
+      if (response.status === 402) {
+          alert("You've run out of credits! Wait until tomorrow or buy a pack now.");
+          return;
+      }
 
       if (!response.ok) throw new Error("API Request Failed");
+      
+      // Update credits locally after successful query
+      if (token) {
+          fetch(`${apiUrl}/me`, { headers })
+          .then(res => res.json())
+          .then(data => {
+              if (data.id) setUser(data);
+          }).catch(err => console.error("Failed to refresh user credits", err));
+      }
 
       const data = await response.json();
       console.log("Results:", data);
@@ -286,6 +314,11 @@ function App() {
             {user ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                 <span style={{ fontSize: '0.75rem', color: '#6366f1', fontWeight: 'bold' }}>👤 {user.display_name}</span>
+                {user.free_credits !== undefined && (
+                  <span style={{ fontSize: '0.7rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                    🔋 {user.free_credits}/5 Free {user.purchased_credits > 0 ? `(${user.purchased_credits} Premium)` : ''}
+                  </span>
+                )}
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button onClick={() => navigate('/history')} style={smallBtnStyle}>History</button>
                   <button onClick={handleLogout} style={smallBtnStyle}>Logout</button>

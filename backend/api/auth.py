@@ -53,6 +53,19 @@ def get_current_user(
     user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
+        
+    # --- Daily Drip Logic ---
+    now = datetime.now(timezone.utc)
+    grant_time = user.last_free_credit_grant
+    if grant_time.tzinfo is None:
+        grant_time = grant_time.replace(tzinfo=timezone.utc)
+        
+    delta = now - grant_time
+    if delta.days >= 1:
+        # Give them 1 credit per day passed, capped at 5
+        user.free_credits = min(5, user.free_credits + delta.days)
+        user.last_free_credit_grant = now
+        db.commit()
     
     return user
 

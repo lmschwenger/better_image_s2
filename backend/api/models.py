@@ -11,6 +11,11 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     display_name = Column(String, default="")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    # Monetization
+    free_credits = Column(Integer, default=10)
+    purchased_credits = Column(Integer, default=0)
+    last_free_credit_grant = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     jobs = relationship("Job", back_populates="owner")
 

@@ -165,7 +165,13 @@ async def auth_callback(provider: str, request: Request, db: Session = Depends(g
 
 @app.get("/api/me")
 def get_me(user: User = Depends(require_user)):
-    return {"id": user.id, "email": user.email, "display_name": user.display_name}
+    return {
+        "id": user.id, 
+        "email": user.email, 
+        "display_name": user.display_name,
+        "free_credits": user.free_credits,
+        "purchased_credits": user.purchased_credits
+    }
 
 # ─── Jobs Endpoints ───
 
@@ -208,54 +214,66 @@ def get_job(job_id: int, user: User = Depends(require_user), db: Session = Depen
 @app.post("/api/query")
 def process_aoi(
     query: AOIQuery,
-    user: Optional[User] = Depends(get_current_user),
+    user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    from api.stac_client import search_sentinel2_scenes
-    real_scenes = search_sentinel2_scenes(query.geojson["geometry"], query.start_date, query.end_date, max_items=50)
-    
-    coords = query.geojson["geometry"]["coordinates"][0][0]
-    lon, lat = coords[0], coords[1]
-    
-    import json
-    import urllib.parse
-    
-    results = []
-    geom_str = json.dumps(query.geojson["geometry"])
-    encoded_geom = urllib.parse.quote(geom_str)
-    
-    for scene in real_scenes:
-        scene_datetime = scene.get('datetime')
-        formatted_date = scene_datetime.split('T')[0] if scene_datetime else "2023-10-15"
-                
-        tide_level = estimate_tide_fes2022(lat, lon, str(formatted_date))
+    # 1. Check if user has enough credits
+    if user.free_credits + user.purchased_credits < 1:
+        raise HTTPException(status_code=402, detail="Payment Required: Insufficient credits.")
         
-        score = calculate_coastal_score(
-            openeo_metadata={
-                'cloud_cover_aoi': scene['cloud_cover_aoi'],
-                'sun_elevation': scene['sun_elevation'],
-                'turbidity_index': scene['turbidity_index']
-            },
-            tide_level=tide_level,
-            task_type=query.task_type
-        )
+    try:
+        # 2. Deduct credit
+        if user.free_credits > 0:
+            user.free_credits -= 1
+        else:
+            user.purchased_credits -= 1
+        db.commit()
         
-        obs_start = f"{formatted_date}T00:00:00.000Z"
-        obs_end = f"{formatted_date}T23:59:59.999Z"
-        copernicus_url = f"https://browser.dataspace.copernicus.eu/?zoom=11&lat={lat}&lng={lon}&themeId=DEFAULT-THEME&datasetId=S2_L2A_CDAS&fromTime={obs_start}&toTime={obs_end}&geometry={encoded_geom}"
+        # 3. Process the heavy workload
+        from api.stac_client import search_sentinel2_scenes
+        real_scenes = search_sentinel2_scenes(query.geojson["geometry"], query.start_date, query.end_date, max_items=50)
         
-        results.append({
-            "scene_id": scene['id'],
-            "datetime": formatted_date,
-            "score": score,
-            "tide_level": tide_level,
-            "cloud_cover": scene['cloud_cover_aoi'],
-            "copernicus_url": copernicus_url
-        })
+        coords = query.geojson["geometry"]["coordinates"][0][0]
+        lon, lat = coords[0], coords[1]
         
-    results = sorted(results, key=lambda x: x['score'], reverse=True)
-    
-    if user is not None:
+        import json
+        import urllib.parse
+        
+        results = []
+        geom_str = json.dumps(query.geojson["geometry"])
+        encoded_geom = urllib.parse.quote(geom_str)
+        
+        for scene in real_scenes:
+            scene_datetime = scene.get('datetime')
+            formatted_date = scene_datetime.split('T')[0] if scene_datetime else "2023-10-15"
+                    
+            tide_level = estimate_tide_fes2022(lat, lon, str(formatted_date))
+            
+            score = calculate_coastal_score(
+                openeo_metadata={
+                    'cloud_cover_aoi': scene['cloud_cover_aoi'],
+                    'sun_elevation': scene['sun_elevation'],
+                    'turbidity_index': scene['turbidity_index']
+                },
+                tide_level=tide_level,
+                task_type=query.task_type
+            )
+            
+            obs_start = f"{formatted_date}T00:00:00.000Z"
+            obs_end = f"{formatted_date}T23:59:59.999Z"
+            copernicus_url = f"https://browser.dataspace.copernicus.eu/?zoom=11&lat={lat}&lng={lon}&themeId=DEFAULT-THEME&datasetId=S2_L2A_CDAS&fromTime={obs_start}&toTime={obs_end}&geometry={encoded_geom}"
+            
+            results.append({
+                "scene_id": scene['id'],
+                "datetime": formatted_date,
+                "score": score,
+                "tide_level": tide_level,
+                "cloud_cover": scene['cloud_cover_aoi'],
+                "copernicus_url": copernicus_url
+            })
+            
+        results = sorted(results, key=lambda x: x['score'], reverse=True)
+        
         job = Job(
             user_id=user.id,
             task_type=query.task_type,
@@ -268,11 +286,19 @@ def process_aoi(
         db.add(job)
         db.commit()
         
-    return {
-        "status": "success", 
-        "metadata": {
-            "requested_aoi": query.geojson,
-            "task_type": query.task_type
-        },
-        "scored_images": results
-    }
+        return {
+            "status": "success", 
+            "metadata": {
+                "requested_aoi": query.geojson,
+                "task_type": query.task_type
+            },
+            "scored_images": results
+        }
+        
+    except Exception as e:
+        # If the Sentinel API fails or code crashes, rollback the database
+        # This securely refunds the user's credit!
+        db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Processing failed. Credit securely refunded. Error: {str(e)}")
