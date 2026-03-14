@@ -209,6 +209,16 @@ def get_job(job_id: int, user: User = Depends(require_user), db: Session = Depen
         "created_at": job.created_at.isoformat() if job.created_at else None,
     }
 
+@app.delete("/api/jobs/{job_id}")
+def delete_job(job_id: int, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    """Delete a specific job."""
+    job = db.query(Job).filter(Job.id == job_id, Job.user_id == user.id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    db.delete(job)
+    db.commit()
+    return {"status": "success"}
+
 # ─── Main Query Endpoint ───
 
 @app.post("/api/query")
@@ -273,6 +283,18 @@ def process_aoi(
             })
             
         results = sorted(results, key=lambda x: x['score'], reverse=True)
+        
+        if len(results) == 0:
+            db.rollback()
+            return {
+                "status": "success", 
+                "metadata": {
+                    "requested_aoi": query.geojson,
+                    "task_type": query.task_type,
+                    "message": "No scenes found for this AOI and date range. Your credit has been refunded."
+                },
+                "scored_images": []
+            }
         
         job = Job(
             user_id=user.id,

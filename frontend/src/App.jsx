@@ -246,6 +246,10 @@ function App() {
       console.log("Results:", data);
       const scored = data.scored_images || [];
 
+      if (scored.length === 0) {
+          alert(data.metadata?.message || "No satellite imagery found for this area and date range. Your credit has been refunded.");
+      }
+
       // Store results and job metadata for the results page
       localStorage.setItem('coastal_results', JSON.stringify(scored));
       localStorage.setItem('coastal_job', JSON.stringify({

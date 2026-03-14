@@ -127,6 +127,23 @@ function JobHistoryPage() {
     navigate('/');
   };
 
+  const handleDeleteJob = async (e, jobId) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to permanently delete this job from your history?")) return;
+    
+    try {
+      const res = await fetch(`${apiUrl}/jobs/${jobId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to delete job");
+      
+      setJobs(jobs.filter(j => j.id !== jobId));
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  };
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -219,8 +236,30 @@ function JobHistoryPage() {
               <MiniMap geojson={job.aoi_geojson} />
 
               {/* Info */}
-              <div style={{ padding: '14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <div style={{ padding: '14px', position: 'relative' }}>
+                <button 
+                  onClick={(e) => handleDeleteJob(e, job.id)}
+                  title="Delete Job"
+                  style={{
+                    position: 'absolute',
+                    top: '12px',
+                    right: '12px',
+                    background: 'none',
+                    border: 'none',
+                    color: '#ef4444',
+                    cursor: 'pointer',
+                    fontSize: '1.1rem',
+                    opacity: 0.6,
+                    padding: '4px',
+                    transition: 'opacity 0.2s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                  onMouseLeave={e => e.currentTarget.style.opacity = 0.6}
+                >
+                  🗑️
+                </button>
+              
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', paddingRight: '28px' }}>
                   <span style={{
                     background: 'rgba(99,102,241,0.15)',
                     color: '#a5b4fc',
