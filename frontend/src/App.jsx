@@ -212,6 +212,11 @@ function App() {
         body: JSON.stringify(queryPayload)
       });
       
+      if (response.status === 401) {
+          alert("You must be logged in to search imagery. Please log in first.");
+          return;
+      }
+      
       if (response.status === 402) {
           alert("You've run out of credits! Wait until tomorrow or buy a pack now.");
           return;
