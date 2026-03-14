@@ -109,6 +109,7 @@ function App() {
   const [jobInfo, setJobInfo] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState(null);
+  const [isBooting, setIsBooting] = useState(false);
 
   const featureGroupRef = useRef();
   const navigate = useNavigate();
@@ -146,14 +147,22 @@ function App() {
     const currentToken = localStorage.getItem('coastal_token');
     if (currentToken) {
         const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+        const bootTimeout = setTimeout(() => setIsBooting(true), 3000);
+        
         fetch(`${apiUrl}/me`, {
             headers: { "Authorization": `Bearer ${currentToken}` }
         })
         .then(res => res.json())
         .then(data => {
+            clearTimeout(bootTimeout);
+            setIsBooting(false);
             if (data.id) setUser(data);
         })
-        .catch(err => console.error("Failed to fetch fresh user data", err));
+        .catch(err => {
+            clearTimeout(bootTimeout);
+            setIsBooting(false);
+            console.error("Failed to fetch fresh user data", err);
+        });
     }
 
     // Check if we came from Job History with a "Show on Map" request
@@ -305,8 +314,28 @@ function App() {
 
   return (
     <div className="app-container">
+      {/* Booting Banner */}
+      {isBooting && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          background: 'linear-gradient(90deg, #f59e0b, #d97706)',
+          color: 'white',
+          textAlign: 'center',
+          padding: '12px',
+          fontWeight: '600',
+          fontSize: '0.9rem',
+          zIndex: 9999,
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+        }}>
+          ⏳ The backend server is waking up from hibernation. This can take up to 50 seconds...
+        </div>
+      )}
+
       {/* Control Panel / Sidebar */}
-      <div className="sidebar glass-panel">
+      <div className="sidebar glass-panel" style={{ marginTop: isBooting ? '44px' : '0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
           <div>
             <h1 style={{ margin: 0, fontSize: '1.5rem' }}>

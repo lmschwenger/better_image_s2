@@ -66,6 +66,7 @@ function JobHistoryPage() {
   const [jobs, setJobs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isBooting, setIsBooting] = useState(false);
 
   const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
   const token = localStorage.getItem('coastal_token');
@@ -77,6 +78,7 @@ function JobHistoryPage() {
     }
 
     const fetchJobs = async () => {
+      const bootTimeout = setTimeout(() => setIsBooting(true), 3000);
       try {
         const res = await fetch(`${apiUrl}/jobs`, {
           headers: { 'Authorization': `Bearer ${token}` },
@@ -87,6 +89,8 @@ function JobHistoryPage() {
       } catch (err) {
         setError('Failed to load job history.');
       } finally {
+        clearTimeout(bootTimeout);
+        setIsBooting(false);
         setIsLoading(false);
       }
     };
@@ -129,8 +133,28 @@ function JobHistoryPage() {
       background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
       color: '#e2e8f0',
       fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-      padding: '24px',
+      padding: isBooting ? '68px 24px 24px 24px' : '24px',
+      position: 'relative'
     }}>
+      {/* Booting Banner */}
+      {isBooting && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          background: 'linear-gradient(90deg, #f59e0b, #d97706)',
+          color: 'white',
+          textAlign: 'center',
+          padding: '12px',
+          fontWeight: '600',
+          fontSize: '0.9rem',
+          zIndex: 9999,
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+        }}>
+          ⏳ The backend server is waking up from hibernation. This can take up to 50 seconds...
+        </div>
+      )}
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '28px' }}>
         <button
