@@ -284,7 +284,7 @@ def process_aoi(
         
         for scene in real_scenes:
             scene_datetime = scene.get('datetime')
-            formatted_date = scene_datetime.split('T')[0] if scene_datetime else "2023-10-15"
+            formatted_date = scene_datetime.split('T')[0]
                     
             tide_level = estimate_tide_fes2022(lat, lon, str(formatted_date))
             
@@ -292,7 +292,8 @@ def process_aoi(
                 openeo_metadata={
                     'cloud_cover_aoi': scene['cloud_cover_aoi'],
                     'sun_elevation': scene['sun_elevation'],
-                    'turbidity_index': scene['turbidity_index']
+                    'snow_ice_percent': scene['snow_ice_percent'],
+                    'aot_mean': scene['aot_mean']
                 },
                 tide_level=tide_level,
                 task_type=query.task_type
