@@ -25,23 +25,24 @@ def calculate_coastal_score(openeo_metadata: Dict, tide_level: float, task_type:
         elif sun_elevation > 50:
             score -= 10
             
-    # 3. Snow / Ice Penalty
-    # Snow on the shore or ice in water is catastrophic for these tasks
+    # 3. Snow / Ice Penalty (Continuous)
+    # Snow on the shore or ice in water is catastrophic for these tasks.
+    # Linear penalty: 10% snow = -15 points.
     snow_ice = openeo_metadata.get('snow_ice_percent')
-    if snow_ice is not None and snow_ice > 1.0:
-        logger.info(f"Snow/Ice detected: {snow_ice}%")
-        score -= (snow_ice * 1.5) # Heavy penalty
+    if snow_ice is not None:
+        logger.info(f"Snow/Ice detected in AOI: {snow_ice}%")
+        score -= (snow_ice * 1.5)
         
-    # 4. Atmospheric Aerosols (AOT)
-    # AOT 100 is typically clear, > 200 is hazy, > 400 is very murky
+    # 4. Atmospheric Aerosols (AOT) (Continuous)
+    # AOT values around 80-100 represent very clear skies.
+    # We apply a linear penalty for every point above 80.
+    # (AOT 160 -> -10 penalty, AOT 400 -> -40 penalty)
     aot = openeo_metadata.get('aot_mean')
     if aot is not None:
-        if aot > 300:
-            score -= 25
-        elif aot > 150:
-            score -= 10
+        aot_penalty = max(0, (aot - 80) * 0.125)
+        score -= aot_penalty
         
-    # 5. Turbidity / Brightness (Optional if present)
+    # 5. Turbidity / Brightness (Optional)
     water_brightness = openeo_metadata.get('turbidity_index') 
     if water_brightness is not None:
         score -= (water_brightness * 20)
