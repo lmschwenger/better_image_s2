@@ -243,15 +243,42 @@ def process_aoi(
         from api.stac_client import search_sentinel2_scenes
         real_scenes = search_sentinel2_scenes(query.geojson["geometry"], query.start_date, query.end_date, max_items=50)
         
-        coords = query.geojson["geometry"]["coordinates"][0][0]
-        lon, lat = coords[0], coords[1]
+        coords_list = query.geojson["geometry"]["coordinates"][0]
+        # Calculate naive center
+        lon = sum(c[0] for c in coords_list) / len(coords_list)
+        lat = sum(c[1] for c in coords_list) / len(coords_list)
         
+        # Calculate appropriate zoom level based on geographic extent
+        min_lon = min(c[0] for c in coords_list)
+        max_lon = max(c[0] for c in coords_list)
+        min_lat = min(c[1] for c in coords_list)
+        max_lat = max(c[1] for c in coords_list)
+        
+        width = max_lon - min_lon
+        height = max_lat - min_lat
+        max_dim = max(width, height)
+        
+        # Heuristic zoom level mapping based on degree span
+        if max_dim > 2.0:
+            zoom = 8
+        elif max_dim > 0.5:
+            zoom = 10
+        elif max_dim > 0.1:
+            zoom = 12
+        elif max_dim > 0.02:
+            zoom = 14
+        else:
+            zoom = 15
+            
         import json
         import urllib.parse
         
         results = []
-        geom_str = json.dumps(query.geojson["geometry"])
-        encoded_geom = urllib.parse.quote(geom_str)
+        
+        # Build polygon WKT string manually
+        coord_strings = [f"{c[0]} {c[1]}" for c in coords_list]
+        wkt_geometry = f"POLYGON(({', '.join(coord_strings)}))"
+        encoded_wkt = urllib.parse.quote(wkt_geometry)
         
         for scene in real_scenes:
             scene_datetime = scene.get('datetime')
@@ -271,7 +298,7 @@ def process_aoi(
             
             obs_start = f"{formatted_date}T00:00:00.000Z"
             obs_end = f"{formatted_date}T23:59:59.999Z"
-            copernicus_url = f"https://browser.dataspace.copernicus.eu/?zoom=11&lat={lat}&lng={lon}&themeId=DEFAULT-THEME&datasetId=S2_L2A_CDAS&fromTime={obs_start}&toTime={obs_end}&geometry={encoded_geom}"
+            copernicus_url = f"https://browser.dataspace.copernicus.eu/?zoom={zoom}&lat={lat}&lng={lon}&themeId=DEFAULT-THEME&datasetId=S2_L2A_CDAS&fromTime={obs_start}&toTime={obs_end}&geometry={encoded_wkt}"
             
             results.append({
                 "scene_id": scene['id'],

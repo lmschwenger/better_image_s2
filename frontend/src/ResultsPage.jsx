@@ -1,7 +1,70 @@
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+function MiniMap({ geojson }) {
+  const mapRef = useRef(null);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!containerRef.current || !geojson) return;
+
+    // Create a non-interactive mini map
+    const map = L.map(containerRef.current, {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false,
+      tap: false,
+    });
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+    // Draw the polygon
+    const geometry = geojson.geometry || geojson;
+    const layer = L.geoJSON(geometry, {
+      style: {
+        color: '#6366f1',
+        weight: 2,
+        fillColor: '#6366f1',
+        fillOpacity: 0.15,
+      },
+    }).addTo(map);
+
+    const bounds = layer.getBounds();
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [10, 10] });
+    }
+
+    mapRef.current = map;
+
+    return () => {
+      map.remove();
+    };
+  }, [geojson]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        width: '200px',
+        height: '140px',
+        borderRadius: '8px',
+        overflow: 'hidden',
+        border: '1px solid #334155',
+        flexShrink: 0
+      }}
+    />
+  );
+}
 
 function ResultsPage() {
   const navigate = useNavigate();
+  const [previewImage, setPreviewImage] = useState(null);
   
   // Load results from localStorage (set by App.jsx after search)
   let results = [];
@@ -27,26 +90,32 @@ function ResultsPage() {
       fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
       padding: '24px',
     }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
-        <button
-          onClick={() => navigate('/')}
-          style={{
-            background: 'rgba(255,255,255,0.08)',
-            border: '1px solid #334155',
-            borderRadius: '8px',
-            color: '#94a3b8',
-            cursor: 'pointer',
-            padding: '8px 16px',
-            fontSize: '0.9rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
-        >
-          ← Back to Map
-        </button>
+      {/* Header Area with Map */}
+      <div style={{ display: 'flex', gap: '24px', marginBottom: '24px', alignItems: 'center' }}>
+        {jobInfo.aoi_geojson && (
+          <MiniMap geojson={jobInfo.aoi_geojson} />
+        )}
+        
         <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+            <button
+              onClick={() => navigate('/')}
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid #334155',
+                borderRadius: '8px',
+                color: '#94a3b8',
+                cursor: 'pointer',
+                padding: '8px 16px',
+                fontSize: '0.9rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              ← Back to Map
+            </button>
+          </div>
           <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#f1f5f9' }}>🛰️ Coastal Sentinel — Results</h1>
           <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#64748b' }}>
             {jobInfo.taskType || 'Search'} · {jobInfo.startDate} → {jobInfo.endDate} · {results.length} scenes · Executed: {jobInfo.executedAt || '—'}
@@ -90,8 +159,8 @@ function ResultsPage() {
                   <td style={tdStyle}>
                     {result.thumbnail_url ? (
                       <div
-                        onClick={() => window.open(result.copernicus_url, '_blank')}
-                        title="Open in Copernicus Browser"
+                        onClick={() => setPreviewImage(result.thumbnail_url)}
+                        title="View Enlarged Preview"
                         style={{
                           width: '72px',
                           height: '72px',
@@ -171,6 +240,62 @@ function ResultsPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Lightbox Overlay */}
+      {previewImage && (
+        <div
+          onClick={() => setPreviewImage(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'zoom-out',
+            padding: '40px',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          {/* Close button (top right) */}
+          <button
+            onClick={() => setPreviewImage(null)}
+            style={{
+              position: 'absolute',
+              top: '20px',
+              right: '25px',
+              background: 'none',
+              border: 'none',
+              color: '#cbd5e1',
+              fontSize: '2.5rem',
+              cursor: 'pointer',
+              padding: '10px',
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+          
+          <img
+            src={previewImage}
+            alt="Enlarged TCI Preview"
+            style={{
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+              borderRadius: '8px',
+              border: '2px solid #334155',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              cursor: 'default',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>

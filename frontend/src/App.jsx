@@ -258,6 +258,7 @@ function App() {
         taskType,
         resultCount: scored.length,
         executedAt: new Date().toLocaleTimeString(),
+        aoi_geojson: aoi
       }));
 
       setJobInfo({

@@ -114,6 +114,7 @@ function JobHistoryPage() {
         taskType: data.task_type,
         resultCount: data.result_count,
         executedAt: data.created_at,
+        aoi_geojson: data.aoi_geojson
       }));
       navigate('/results');
     } catch (err) {
