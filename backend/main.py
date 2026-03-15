@@ -275,10 +275,9 @@ def process_aoi(
         
         results = []
         
-        # Build polygon WKT string manually
-        coord_strings = [f"{c[0]} {c[1]}" for c in coords_list]
-        wkt_geometry = f"POLYGON(({', '.join(coord_strings)}))"
-        encoded_wkt = urllib.parse.quote(wkt_geometry)
+        # Build polygon GeoJSON string for Copernicus
+        geom_str = json.dumps(query.geojson["geometry"])
+        encoded_geom = urllib.parse.quote(geom_str)
         
         for scene in real_scenes:
             scene_datetime = scene.get('datetime')
@@ -298,7 +297,12 @@ def process_aoi(
             
             obs_start = f"{formatted_date}T00:00:00.000Z"
             obs_end = f"{formatted_date}T23:59:59.999Z"
-            copernicus_url = f"https://browser.dataspace.copernicus.eu/?zoom={zoom}&lat={lat}&lng={lon}&themeId=DEFAULT-THEME&datasetId=S2_L2A_CDAS&fromTime={obs_start}&toTime={obs_end}&geometry={encoded_wkt}"
+            copernicus_url = f"https://browser.dataspace.copernicus.eu/?zoom={zoom}&lat={lat}&lng={lon}&themeId=DEFAULT-THEME&datasetId=S2_L2A_CDAS&fromTime={obs_start}&toTime={obs_end}&geometry={encoded_geom}"
+            
+            # Request a cropped native preview from Microsoft Planetary Computer
+            thumbnail_url = scene.get('thumbnail_url')
+            if thumbnail_url and "preview.png" in thumbnail_url:
+                thumbnail_url += f"&bbox={min_lon},{min_lat},{max_lon},{max_lat}"
             
             results.append({
                 "scene_id": scene['id'],
@@ -307,7 +311,7 @@ def process_aoi(
                 "tide_level": tide_level,
                 "cloud_cover": scene['cloud_cover_aoi'],
                 "copernicus_url": copernicus_url,
-                "thumbnail_url": scene.get('thumbnail_url')
+                "thumbnail_url": thumbnail_url
             })
             
         results = sorted(results, key=lambda x: x['score'], reverse=True)
