@@ -3,21 +3,21 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-CDSE_STAC_URL = "https://catalogue.dataspace.copernicus.eu/stac"
+MPC_STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 
 def search_sentinel2_scenes(geojson_aoi: dict, start_date: str, end_date: str, max_items: int = 20):
     """
-    Queries the real Copernicus Data Space Ecosystem STAC API for Sentinel-2 L2A imagery.
+    Queries the Microsoft Planetary Computer STAC API for Sentinel-2 L2A imagery.
     Accepts either a raw GeoJSON Geometry or a GeoJSON Feature (defensively unwraps).
     """
-    logger.info(f"Querying CDSE STAC API from {start_date} to {end_date}")
+    logger.info(f"Querying MPC STAC API from {start_date} to {end_date}")
     
     # Defensively unwrap a Feature object to its geometry
     if geojson_aoi.get("type") == "Feature":
         geojson_aoi = geojson_aoi["geometry"]
     
     try:
-        client = Client.open(CDSE_STAC_URL)
+        client = Client.open(MPC_STAC_URL)
         
         # Calculate bounding box from GeoJSON coordinates
         coords = geojson_aoi["coordinates"][0]
@@ -50,10 +50,10 @@ def search_sentinel2_scenes(geojson_aoi: dict, start_date: str, end_date: str, m
                 "sun_elevation": props.get("view:sun_elevation", 45.0),
                 "turbidity_index": 0.5, # STAC doesn't provide turbidity; we return a neutral mock value
                 "datetime": props.get("datetime"),
-                "thumbnail_url": assets.get("thumbnail").href if "thumbnail" in assets else None
+                "thumbnail_url": assets.get("rendered_preview").href if "rendered_preview" in assets else None
             })
             
-        logger.info(f"Retrieved {len(scenes)} scenes from CDSE.")
+        logger.info(f"Retrieved {len(scenes)} scenes from MPC.")
         return scenes
         
     except Exception as e:
