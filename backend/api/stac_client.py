@@ -13,29 +13,29 @@ def fetch_aoi_stats(item_id: str, bbox: list) -> dict:
     SCL Classes: 8 (Medium Cloud), 9 (High Cloud), 10 (Thin Cirrus), 11 (Snow/Ice).
     """
     bbox_str = f"{bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]}"
-    assets = "AOT,SCL"
-    stats_url = f"https://planetarycomputer.microsoft.com/api/data/v1/item/statistics?collection=sentinel-2-l2a&item={item_id}&assets={assets}&bbox={bbox_str}&categorical=True"
+    res_stats = {"aot_mean": None, "cloud_percent": None, "snow_percent": None}
     
+    # 1. Fetch AOT (Atmospheric Aerosol)
+    aot_url = f"https://planetarycomputer.microsoft.com/api/data/v1/item/statistics?collection=sentinel-2-l2a&item={item_id}&assets=AOT&bbox={bbox_str}"
     try:
-        req = urllib.request.Request(stats_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as res:
+        req = urllib.request.Request(aot_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as res:
             data = json.loads(res.read())
-            
-            # 1. AOT Mean
-            aot_mean = data.get("AOT_b1", {}).get("mean")
-            
-            # 2. SCL specific percentages (categorical)
+            res_stats["aot_mean"] = data.get("AOT_b1", {}).get("mean")
+    except Exception as e:
+        logger.debug(f"AOT stats failed for {item_id}: {e}")
+
+    # 2. Fetch SCL (Cloud/Snow Categorical)
+    scl_url = f"https://planetarycomputer.microsoft.com/api/data/v1/item/statistics?collection=sentinel-2-l2a&item={item_id}&assets=SCL&bbox={bbox_str}&categorical=True"
+    try:
+        req = urllib.request.Request(scl_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as res:
+            data = json.loads(res.read())
             scl_stats = data.get("SCL_b1", {})
             histogram = scl_stats.get("histogram", [[], []])
             counts = histogram[0]
             values = histogram[1]
             total_pixels = scl_stats.get("valid_pixels", 0)
-            
-            res_stats = {
-                "aot_mean": aot_mean,
-                "cloud_percent": 0.0,
-                "snow_percent": 0.0
-            }
             
             if total_pixels > 0:
                 val_to_count = dict(zip(values, counts))
@@ -46,12 +46,10 @@ def fetch_aoi_stats(item_id: str, bbox: list) -> dict:
                 
                 res_stats["cloud_percent"] = (cloud_count / total_pixels) * 100.0
                 res_stats["snow_percent"] = (snow_count / total_pixels) * 100.0
-                
-            return res_stats
-            
     except Exception as e:
-        logger.warning(f"Failed to fetch AOI stats for {item_id}: {e}")
-        return {"aot_mean": None, "cloud_percent": None, "snow_percent": None}
+        logger.debug(f"SCL stats failed for {item_id}: {e}")
+        
+    return res_stats
 
 def search_sentinel2_scenes(geojson_aoi: dict, start_date: str, end_date: str, max_items: int = 20):
     """
@@ -95,11 +93,20 @@ def search_sentinel2_scenes(geojson_aoi: dict, start_date: str, end_date: str, m
             # Fetch AOI-specific stats from Titiler service
             aoi_stats = fetch_aoi_stats(item.id, bbox)
             
+            # Fallback to scene-wide properties if AOI-specific stats fail
+            cloud_aoi = aoi_stats.get("cloud_percent")
+            if cloud_aoi is None:
+                cloud_aoi = props.get("eo:cloud_cover")
+            
+            snow_aoi = aoi_stats.get("snow_percent")
+            if snow_aoi is None:
+                snow_aoi = props.get("s2:snow_ice_percentage")
+            
             scenes.append({
                 "id": item.id,
-                "cloud_cover_aoi": aoi_stats.get("cloud_percent"),
+                "cloud_cover_aoi": cloud_aoi,
                 "sun_elevation": sun_elev,
-                "snow_ice_percent": aoi_stats.get("snow_percent"),
+                "snow_ice_percent": snow_aoi,
                 "aot_mean": aoi_stats.get("aot_mean"),
                 "datetime": props.get("datetime"),
                 "thumbnail_url": assets.get("rendered_preview").href if "rendered_preview" in assets else None
