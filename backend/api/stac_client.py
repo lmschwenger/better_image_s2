@@ -2,6 +2,7 @@ import urllib.request
 import json
 from pystac_client import Client
 import logging
+from shapely.geometry import shape
 
 logger = logging.getLogger(__name__)
 
@@ -54,11 +55,15 @@ def fetch_aoi_stats(item_id: str, bbox: list) -> dict:
 def search_sentinel2_scenes(geojson_aoi: dict, start_date: str, end_date: str, max_items: int = 20):
     """
     Queries the Microsoft Planetary Computer STAC API for Sentinel-2 L2A imagery.
+    Filters out scenes that do not cover at least 80% of the user-provided AOI.
     """
     logger.info(f"Querying MPC STAC API from {start_date} to {end_date}")
     
     if geojson_aoi.get("type") == "Feature":
         geojson_aoi = geojson_aoi["geometry"]
+    
+    aoi_shape = shape(geojson_aoi)
+    aoi_area = aoi_shape.area
     
     try:
         client = Client.open(MPC_STAC_URL)
@@ -82,6 +87,15 @@ def search_sentinel2_scenes(geojson_aoi: dict, start_date: str, end_date: str, m
         scenes = []
         
         for item in items:
+            # 1. Geometric Coverage check
+            item_shape = shape(item.geometry)
+            intersection = aoi_shape.intersection(item_shape)
+            coverage = (intersection.area / aoi_area) * 100.0
+            
+            if coverage < 80.0:
+                logger.info(f"Discarding item {item.id}: only {coverage:.1f}% AOI coverage.")
+                continue
+
             props = item.properties
             assets = item.assets
             
@@ -112,7 +126,7 @@ def search_sentinel2_scenes(geojson_aoi: dict, start_date: str, end_date: str, m
                 "thumbnail_url": assets.get("rendered_preview").href if "rendered_preview" in assets else None
             })
             
-        logger.info(f"Retrieved {len(scenes)} scenes from MPC.")
+        logger.info(f"Retrieved {len(scenes)} high-coverage scenes from MPC.")
         return scenes
         
     except Exception as e:
