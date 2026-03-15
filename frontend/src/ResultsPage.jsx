@@ -88,26 +88,43 @@ function ResultsPage() {
                 >
                   <td style={tdStyle}>{idx + 1}</td>
                   <td style={tdStyle}>
-                    {/* Stylized preview placeholder */}
-                    <div
-                      onClick={() => window.open(result.copernicus_url, '_blank')}
-                      title="Open in Copernicus Browser"
-                      style={{
-                        width: '72px',
-                        height: '72px',
-                        borderRadius: '8px',
-                        background: 'linear-gradient(135deg, #1e40af 0%, #0ea5e9 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '1.5rem',
-                        cursor: 'pointer',
-                        border: '1px solid #334155',
-                        flexShrink: 0,
-                      }}
-                    >
-                      🛰️
-                    </div>
+                    {result.thumbnail_url ? (
+                      <div
+                        onClick={() => window.open(result.copernicus_url, '_blank')}
+                        title="Open in Copernicus Browser"
+                        style={{
+                          width: '72px',
+                          height: '72px',
+                          borderRadius: '8px',
+                          backgroundImage: `url(${result.thumbnail_url})`,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          cursor: 'pointer',
+                          border: '1px solid #334155',
+                          flexShrink: 0,
+                        }}
+                      />
+                    ) : (
+                      <div
+                        onClick={() => window.open(result.copernicus_url, '_blank')}
+                        title="Open in Copernicus Browser"
+                        style={{
+                          width: '72px',
+                          height: '72px',
+                          borderRadius: '8px',
+                          background: 'linear-gradient(135deg, #1e40af 0%, #0ea5e9 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '1.5rem',
+                          cursor: 'pointer',
+                          border: '1px solid #334155',
+                          flexShrink: 0,
+                        }}
+                      >
+                        🛰️
+                      </div>
+                    )}
                   </td>
                   <td style={tdStyle}>{result.datetime || '—'}</td>
                   <td style={{...tdStyle, fontVariantNumeric: 'tabular-nums'}}>

@@ -279,7 +279,8 @@ def process_aoi(
                 "score": score,
                 "tide_level": tide_level,
                 "cloud_cover": scene['cloud_cover_aoi'],
-                "copernicus_url": copernicus_url
+                "copernicus_url": copernicus_url,
+                "thumbnail_url": scene.get('thumbnail_url')
             })
             
         results = sorted(results, key=lambda x: x['score'], reverse=True)

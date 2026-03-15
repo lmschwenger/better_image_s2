@@ -41,6 +41,7 @@ def search_sentinel2_scenes(geojson_aoi: dict, start_date: str, end_date: str, m
         
         for item in items:
             props = item.properties
+            assets = item.assets
             # Extract standard Sentinel-2 STAC properties
             # If a property is missing, we provide a safe fallback based on the app's scoring ranges
             scenes.append({
@@ -48,7 +49,8 @@ def search_sentinel2_scenes(geojson_aoi: dict, start_date: str, end_date: str, m
                 "cloud_cover_aoi": props.get("eo:cloud_cover", 0.0), # Assuming total cloud cover as proxy for AOI
                 "sun_elevation": props.get("view:sun_elevation", 45.0),
                 "turbidity_index": 0.5, # STAC doesn't provide turbidity; we return a neutral mock value
-                "datetime": props.get("datetime")
+                "datetime": props.get("datetime"),
+                "thumbnail_url": assets.get("thumbnail").href if "thumbnail" in assets else None
             })
             
         logger.info(f"Retrieved {len(scenes)} scenes from CDSE.")
