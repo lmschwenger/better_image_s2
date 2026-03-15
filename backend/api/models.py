@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from api.database import Base
@@ -16,6 +16,7 @@ class User(Base):
     free_credits = Column(Integer, default=10)
     purchased_credits = Column(Integer, default=0)
     last_free_credit_grant = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    is_unlimited = Column(Boolean, default=False)
 
     jobs = relationship("Job", back_populates="owner")
 

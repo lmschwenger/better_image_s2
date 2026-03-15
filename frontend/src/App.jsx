@@ -353,10 +353,16 @@ function App() {
             {user ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                 <span style={{ fontSize: '0.75rem', color: '#6366f1', fontWeight: 'bold' }}>👤 {user.display_name}</span>
-                {user.free_credits !== undefined && (
+                {user.is_unlimited ? (
                   <span style={{ fontSize: '0.7rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
-                    🔋 {user.free_credits}/5 Free {user.purchased_credits > 0 ? `(${user.purchased_credits} Premium)` : ''}
+                    🔋 Unlimited Access
                   </span>
+                ) : (
+                  user.free_credits !== undefined && (
+                    <span style={{ fontSize: '0.7rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                      🔋 {user.free_credits}/5 Free {user.purchased_credits > 0 ? `(${user.purchased_credits} Premium)` : ''}
+                    </span>
+                  )
                 )}
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button onClick={() => navigate('/history')} style={smallBtnStyle}>History</button>

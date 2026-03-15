@@ -153,7 +153,8 @@ async def auth_callback(provider: str, request: Request, db: Session = Depends(g
     user_data = json.dumps({
         "id": user.id,
         "email": user.email,
-        "display_name": user.display_name
+        "display_name": user.display_name,
+        "is_unlimited": user.is_unlimited
     })
     encoded_user = urllib.parse.quote(user_data)
     
@@ -170,7 +171,8 @@ def get_me(user: User = Depends(require_user)):
         "email": user.email, 
         "display_name": user.display_name,
         "free_credits": user.free_credits,
-        "purchased_credits": user.purchased_credits
+        "purchased_credits": user.purchased_credits,
+        "is_unlimited": user.is_unlimited
     }
 
 # ─── Jobs Endpoints ───
@@ -227,17 +229,18 @@ def process_aoi(
     user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    # 1. Check if user has enough credits
-    if user.free_credits + user.purchased_credits < 1:
+    # 1. Check if user has enough credits (skip if unlimited)
+    if not user.is_unlimited and (user.free_credits + user.purchased_credits < 1):
         raise HTTPException(status_code=402, detail="Payment Required: Insufficient credits.")
         
     try:
-        # 2. Deduct credit
-        if user.free_credits > 0:
-            user.free_credits -= 1
-        else:
-            user.purchased_credits -= 1
-        db.commit()
+        # 2. Deduct credit (skip if unlimited)
+        if not user.is_unlimited:
+            if user.free_credits > 0:
+                user.free_credits -= 1
+            else:
+                user.purchased_credits -= 1
+            db.commit()
         
         # 3. Process the heavy workload
         from api.stac_client import search_sentinel2_scenes
