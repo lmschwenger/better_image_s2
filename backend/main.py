@@ -6,6 +6,8 @@ from pydantic import BaseModel
 from typing import Optional, List
 from sqlalchemy.orm import Session
 import os
+import io
+import logging
 
 # Import modularized components
 from api.tides import estimate_tide_fes2022
@@ -242,121 +244,132 @@ def process_aoi(
                 user.purchased_credits -= 1
             db.commit()
         
-        # 3. Process the heavy workload
+        # 3. Process the heavy workload with log capture
         from api.stac_client import search_sentinel2_scenes
-        real_scenes = search_sentinel2_scenes(query.geojson["geometry"], query.start_date, query.end_date, max_items=50)
         
-        coords_list = query.geojson["geometry"]["coordinates"][0]
-        # Calculate naive center
-        lon = sum(c[0] for c in coords_list) / len(coords_list)
-        lat = sum(c[1] for c in coords_list) / len(coords_list)
+        log_buffer = io.StringIO()
+        log_handler = logging.StreamHandler(log_buffer)
+        log_handler.setLevel(logging.INFO)
+        # We target the root logger or specific loggers to capture all diagnostic output
+        root_logger = logging.getLogger()
+        root_logger.addHandler(log_handler)
         
-        # Calculate appropriate zoom level based on geographic extent
-        min_lon = min(c[0] for c in coords_list)
-        max_lon = max(c[0] for c in coords_list)
-        min_lat = min(c[1] for c in coords_list)
-        max_lat = max(c[1] for c in coords_list)
-        
-        width = max_lon - min_lon
-        height = max_lat - min_lat
-        max_dim = max(width, height)
-        
-        # Heuristic zoom level mapping based on degree span
-        if max_dim > 2.0:
-            zoom = 8
-        elif max_dim > 0.5:
-            zoom = 10
-        elif max_dim > 0.1:
-            zoom = 12
-        elif max_dim > 0.02:
-            zoom = 14
-        else:
-            zoom = 15
+        try:
+            real_scenes = search_sentinel2_scenes(query.geojson["geometry"], query.start_date, query.end_date, max_items=50)
             
-        import json
-        import urllib.parse
-        
-        results = []
-        
-        # Build polygon GeoJSON string for Copernicus
-        geom_str = json.dumps(query.geojson["geometry"])
-        encoded_geom = urllib.parse.quote(geom_str)
-        
-        for scene in real_scenes:
-            scene_datetime = scene.get('datetime')
-            formatted_date = scene_datetime.split('T')[0]
-                    
-            tide_level = estimate_tide_fes2022(lat, lon, str(formatted_date))
+            coords_list = query.geojson["geometry"]["coordinates"][0]
+            # Calculate naive center
+            lon = sum(c[0] for c in coords_list) / len(coords_list)
+            lat = sum(c[1] for c in coords_list) / len(coords_list)
             
-            score = calculate_coastal_score(
-                openeo_metadata={
-                    'cloud_cover_aoi': scene['cloud_cover_aoi'],
-                    'sun_elevation': scene['sun_elevation'],
-                    'snow_ice_percent': scene['snow_ice_percent'],
-                    'aot_mean': scene['aot_mean']
-                },
-                tide_level=tide_level,
-                task_type=query.task_type
+            # Calculate appropriate zoom level based on geographic extent
+            min_lon = min(c[0] for c in coords_list)
+            max_lon = max(c[0] for c in coords_list)
+            min_lat = min(c[1] for c in coords_list)
+            max_lat = max(c[1] for c in coords_list)
+            
+            width = max_lon - min_lon
+            height = max_lat - min_lat
+            max_dim = max(width, height)
+            
+            # Heuristic zoom level mapping based on degree span
+            if max_dim > 2.0:
+                zoom = 8
+            elif max_dim > 0.5:
+                zoom = 10
+            elif max_dim > 0.1:
+                zoom = 12
+            elif max_dim > 0.02:
+                zoom = 14
+            else:
+                zoom = 15
+                
+            import json
+            import urllib.parse
+            
+            results = []
+            
+            # Build polygon GeoJSON string for Copernicus
+            geom_str = json.dumps(query.geojson["geometry"])
+            encoded_geom = urllib.parse.quote(geom_str)
+            
+            for scene in real_scenes:
+                scene_datetime = scene.get('datetime')
+                formatted_date = scene_datetime.split('T')[0]
+                        
+                tide_level = estimate_tide_fes2022(lat, lon, str(formatted_date))
+                
+                score = calculate_coastal_score(
+                    openeo_metadata={
+                        'cloud_cover_aoi': scene['cloud_cover_aoi'],
+                        'sun_elevation': scene['sun_elevation'],
+                        'snow_ice_percent': scene['snow_ice_percent'],
+                        'aot_mean': scene['aot_mean']
+                    },
+                    tide_level=tide_level,
+                    task_type=query.task_type
+                )
+                
+                obs_start = f"{formatted_date}T00:00:00.000Z"
+                obs_end = f"{formatted_date}T23:59:59.999Z"
+                copernicus_url = f"https://browser.dataspace.copernicus.eu/?zoom={zoom}&lat={lat}&lng={lon}&themeId=DEFAULT-THEME&datasetId=S2_L2A_CDAS&fromTime={obs_start}&toTime={obs_end}&geometry={encoded_geom}"
+                
+                # Request a cropped native preview from Microsoft Planetary Computer
+                thumbnail_url = scene.get('thumbnail_url')
+                if thumbnail_url and "preview.png" in thumbnail_url:
+                    thumbnail_url += f"&bbox={min_lon},{min_lat},{max_lon},{max_lat}"
+                
+                results.append({
+                    "scene_id": scene['id'],
+                    "datetime": formatted_date,
+                    "score": score,
+                    "tide_level": tide_level,
+                    "cloud_cover": scene['cloud_cover_aoi'],
+                    "copernicus_url": copernicus_url,
+                    "thumbnail_url": thumbnail_url
+                })
+                
+            results = sorted(results, key=lambda x: x['score'], reverse=True)
+            
+            # Create the job record
+            job = Job(
+                user_id=user.id,
+                task_type=query.task_type,
+                start_date=query.start_date,
+                end_date=query.end_date,
+                aoi_geojson=query.geojson,
+                results=results,
+                result_count=len(results),
+                logs=log_buffer.getvalue()
             )
+            db.add(job)
+            db.commit()
+            db.refresh(job)
             
-            obs_start = f"{formatted_date}T00:00:00.000Z"
-            obs_end = f"{formatted_date}T23:59:59.999Z"
-            copernicus_url = f"https://browser.dataspace.copernicus.eu/?zoom={zoom}&lat={lat}&lng={lon}&themeId=DEFAULT-THEME&datasetId=S2_L2A_CDAS&fromTime={obs_start}&toTime={obs_end}&geometry={encoded_geom}"
-            
-            # Request a cropped native preview from Microsoft Planetary Computer
-            thumbnail_url = scene.get('thumbnail_url')
-            if thumbnail_url and "preview.png" in thumbnail_url:
-                thumbnail_url += f"&bbox={min_lon},{min_lat},{max_lon},{max_lat}"
-            
-            results.append({
-                "scene_id": scene['id'],
-                "datetime": formatted_date,
-                "score": score,
-                "tide_level": tide_level,
-                "cloud_cover": scene['cloud_cover_aoi'],
-                "copernicus_url": copernicus_url,
-                "thumbnail_url": thumbnail_url
-            })
-            
-        results = sorted(results, key=lambda x: x['score'], reverse=True)
-        
-        if len(results) == 0:
-            db.rollback()
             return {
                 "status": "success", 
                 "metadata": {
                     "requested_aoi": query.geojson,
                     "task_type": query.task_type,
-                    "message": "No scenes found for this AOI and date range. Your credit has been refunded."
+                    "job_id": job.id
                 },
-                "scored_images": []
+                "scored_images": results
             }
-        
-        job = Job(
-            user_id=user.id,
-            task_type=query.task_type,
-            start_date=query.start_date,
-            end_date=query.end_date,
-            aoi_geojson=query.geojson,
-            results=results,
-            result_count=len(results),
-        )
-        db.add(job)
-        db.commit()
-        
-        return {
-            "status": "success", 
-            "metadata": {
-                "requested_aoi": query.geojson,
-                "task_type": query.task_type
-            },
-            "scored_images": results
-        }
-        
+            
+        finally:
+            root_logger.removeHandler(log_handler)
+            log_buffer.close()
+            
     except Exception as e:
         # If the Sentinel API fails or code crashes, rollback the database
-        # This securely refunds the user's credit!
         db.rollback()
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Processing failed. Credit securely refunded. Error: {str(e)}")
+
+@app.get("/api/jobs/{job_id}/logs")
+def get_job_logs(job_id: int, current_user: User = Depends(require_user), db: Session = Depends(get_db)):
+    job = db.query(Job).filter(Job.id == job_id, Job.user_id == current_user.id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"logs": job.logs}

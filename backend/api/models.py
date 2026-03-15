@@ -32,6 +32,7 @@ class Job(Base):
     aoi_geojson = Column(JSON, nullable=False)
     results = Column(JSON, nullable=False)   # The full scored_images array
     result_count = Column(Integer, default=0)
+    logs = Column(String, nullable=True)     # Detailed diagnostic logs
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     owner = relationship("User", back_populates="jobs")
