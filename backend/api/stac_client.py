@@ -116,6 +116,10 @@ def search_sentinel2_scenes(geojson_aoi: dict, start_date: str, end_date: str, m
             if snow_aoi is None:
                 snow_aoi = props.get("s2:snow_ice_percentage")
             
+            # Generate a cropped thumbnail URL using the bbox endpoint
+            bbox_str = f"{min_lon},{min_lat},{max_lon},{max_lat}"
+            cropped_thumbnail_url = f"https://planetarycomputer.microsoft.com/api/data/v1/item/bbox/{bbox_str}.png?collection=sentinel-2-l2a&item={item.id}&assets=visual"
+            
             scenes.append({
                 "id": item.id,
                 "cloud_cover_aoi": cloud_aoi,
@@ -123,7 +127,7 @@ def search_sentinel2_scenes(geojson_aoi: dict, start_date: str, end_date: str, m
                 "snow_ice_percent": snow_aoi,
                 "aot_mean": aoi_stats.get("aot_mean"),
                 "datetime": props.get("datetime"),
-                "thumbnail_url": assets.get("rendered_preview").href if "rendered_preview" in assets else None
+                "thumbnail_url": cropped_thumbnail_url
             })
             
         logger.info(f"Retrieved {len(scenes)} high-coverage scenes from MPC.")
