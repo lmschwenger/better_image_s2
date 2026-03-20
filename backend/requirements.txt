@@ -20,5 +20,5 @@ xarray>=2024.1.0
 netCDF4>=1.6.0
 scipy>=1.12.0
 fsspec>=2024.2.0
-timescale-time>=0.0.1
+timescale>=1.0.1
 shapely>=2.0.0
