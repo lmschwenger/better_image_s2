@@ -75,7 +75,6 @@ def _get_fes_dataset():
 def estimate_tide_fes2022(lat: float, lon: float, time_str: str) -> float:
     """
     Estimates the tidal level using the FES2022b global tidal model constituents.
-    This replaces the previous mock implementation with high-precision physics-based prediction.
     """
     logger.info(f"FES2022 Tide calculation requested for {lat}, {lon} at {time_str}")
     
@@ -83,7 +82,7 @@ def estimate_tide_fes2022(lat: float, lon: float, time_str: str) -> float:
         # Load or retrieve dataset
         ds = _get_fes_dataset()
         if ds is None:
-            return _mock_fallback(lat, lon, time_str)
+            return 0.0
         
         # 1. Parse time
         try:
@@ -117,10 +116,10 @@ def estimate_tide_fes2022(lat: float, lon: float, time_str: str) -> float:
                 re_val = ds[c].real.interp(x=target_x, y=target_y, method='nearest').values
                 im_val = ds[c].imag.interp(x=target_x, y=target_y, method='nearest').values
             
-            # If still NaN (point is deep inland or far from grid), use mock fallback
+            # If still NaN (point is deep inland or far from grid), return 0.0
             if np.isnan(re_val) or np.isnan(im_val):
-                logger.warning(f"FES2022 point ({lat}, {lon}) is outside the ocean grid mask. Using mock.")
-                return _mock_fallback(lat, lon, time_str)
+                logger.warning(f"FES2022 point ({lat}, {lon}) is outside the ocean grid mask. Setting to 0.0")
+                return 0.0
             
             z = complex(re_val + 1j * im_val)
             
@@ -157,12 +156,6 @@ def estimate_tide_fes2022(lat: float, lon: float, time_str: str) -> float:
         return round(float(tide_sum), 3)
 
     except Exception as e:
-        logger.error(f"FES2022 real-time prediction failed: {e}. Falling back to deterministic mock.")
-        return _mock_fallback(lat, lon, time_str)
+        logger.error(f"FES2022 real-time prediction failed: {e}. setting to 0.0")
+        return 0.0
 
-def _mock_fallback(lat: float, lon: float, time_str: str) -> float:
-    """Deterministic fallback in case of missing model data or library errors."""
-    seed_str = f"{lat}_{lon}_{time_str}"
-    tide_hash = hash(seed_str) % 300
-    mock_tide_level = (tide_hash / 100.0) - 1.5
-    return round(mock_tide_level, 2)
