@@ -3,56 +3,63 @@ from typing import Dict
 
 logger = logging.getLogger(__name__)
 
-def calculate_coastal_score(openeo_metadata: Dict, tide_level: float, task_type: str) -> int:
+def calculate_coastal_score(openeo_metadata: Dict, tide_level: float, task_type: str) -> Dict:
     """
-    Aggregates openEO pixel-level calculations and metadata into a final 1-100 score.
+    Aggregates metrics into a final 1-100 score and returns a detailed breakdown.
     """
-    
-    score = 100
+    current_score = 100.0
+    breakdown = {"initial_score": 100}
     
     # 1. Cloud Cover Penalty
     cloud_cover_percent = openeo_metadata.get('cloud_cover_aoi')
     if cloud_cover_percent is not None:
-        logger.info(f"Cloud Cover in AOI: {cloud_cover_percent}%")
-        score -= (cloud_cover_percent * 0.8) # Up to 40 point penalty
+        penalty = cloud_cover_percent * 0.8
+        current_score -= penalty
+        breakdown["cloud_penalty"] = round(penalty, 2)
     
     # 2. Sun Glint Penalty
     sun_elevation = openeo_metadata.get('sun_elevation')
     if sun_elevation is not None:
-        # Very high sun elevation implies high glint risk over water
+        penalty = 0
         if sun_elevation > 60:
-            score -= 20
+            penalty = 20
         elif sun_elevation > 50:
-            score -= 10
+            penalty = 10
+        current_score -= penalty
+        breakdown["sun_glint_penalty"] = penalty
             
-    # 3. Snow / Ice Penalty (Continuous)
-    # Snow on the shore or ice in water is catastrophic for these tasks.
-    # Linear penalty: 10% snow = -15 points.
+    # 3. Snow / Ice Penalty
     snow_ice = openeo_metadata.get('snow_ice_percent')
     if snow_ice is not None:
-        logger.info(f"Snow/Ice detected in AOI: {snow_ice}%")
-        score -= (snow_ice * 1.5)
+        penalty = snow_ice * 1.5
+        current_score -= penalty
+        breakdown["snow_ice_penalty"] = round(penalty, 2)
         
-    # 4. Atmospheric Aerosols (AOT) (Continuous)
-    # AOT values around 80-100 represent very clear skies.
-    # We apply a linear penalty for every point above 80.
-    # (AOT 160 -> -10 penalty, AOT 400 -> -40 penalty)
+    # 4. Atmospheric Aerosols (AOT)
     aot = openeo_metadata.get('aot_mean')
     if aot is not None:
-        aot_penalty = max(0, (aot - 80) * 0.125)
-        score -= aot_penalty
+        penalty = max(0, (aot - 80) * 0.125)
+        current_score -= penalty
+        breakdown["aerosol_penalty"] = round(penalty, 2)
         
-    # 5. Turbidity / Brightness (Continuous)
-    # High reflectance in Red/Green bands over water indicates turbidity or shallow sand clouds.
-    # Sentinel-2 reflectance values are scaled by 10,000.
-    # We apply a penalty for values > 500 (5% reflectance).
+    # 5. Turbidity / Brightness
     turbidity = openeo_metadata.get('turbidity_index') 
     if turbidity is not None:
-        logger.info(f"AOI Turbidity/Brightness index: {turbidity}")
-        # Every 100 units above 500 is a 5 point penalty (capped at 30)
-        turb_penalty = min(30, max(0, (turbidity - 500) * 0.05))
-        score -= turb_penalty
+        penalty = min(30, max(0, (turbidity - 500) * 0.05))
+        current_score -= penalty
+        breakdown["turbidity_penalty"] = round(penalty, 2)
+
+    # 6. Tide Level Penalty (Task Specific)
+    # For SDB (Bathymetry), lower tides are significantly better.
+    if task_type == "SDB":
+        # If tide is > 0.5m, start penalizing
+        if tide_level > 0.5:
+            penalty = min(25, (tide_level - 0.5) * 10)
+            current_score -= penalty
+            breakdown["tide_penalty"] = round(penalty, 2)
         
-    # Bound score between 1 and 100
-    final_score = max(1, min(100, int(score)))
-    return final_score
+    final_score = max(1, min(100, int(current_score)))
+    return {
+        "final_score": final_score,
+        "breakdown": breakdown
+    }

@@ -299,7 +299,7 @@ def process_aoi(
                         
                 tide_level = estimate_tide_fes2022(lat, lon, str(formatted_date))
                 
-                score = calculate_coastal_score(
+                score_data = calculate_coastal_score(
                     openeo_metadata={
                         'cloud_cover_aoi': scene['cloud_cover_aoi'],
                         'sun_elevation': scene['sun_elevation'],
@@ -320,7 +320,8 @@ def process_aoi(
                 results.append({
                     "scene_id": scene['id'],
                     "datetime": formatted_date,
-                    "score": score,
+                    "score": score_data["final_score"],
+                    "score_breakdown": score_data["breakdown"],
                     "tide_level": tide_level,
                     "cloud_cover": scene['cloud_cover_aoi'],
                     "copernicus_url": copernicus_url,

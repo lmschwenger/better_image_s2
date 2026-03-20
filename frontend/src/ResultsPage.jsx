@@ -62,11 +62,85 @@ function MiniMap({ geojson }) {
   );
 }
 
+function ScoreCalculationModal({ breakdown, onClose }) {
+  if (!breakdown) return null;
+  
+  const items = [
+    { label: "Initial Score", value: breakdown.initial_score, isBase: true },
+    { label: "Cloud Penalty", value: breakdown.cloud_penalty },
+    { label: "Sun Glint Penalty", value: breakdown.sun_glint_penalty },
+    { label: "Snow/Ice Penalty", value: breakdown.snow_ice_penalty },
+    { label: "Aerosol Penalty", value: breakdown.aerosol_penalty },
+    { label: "Turbidity Penalty", value: breakdown.turbidity_penalty },
+    { label: "Tide Penalty", value: breakdown.tide_penalty },
+  ].filter(item => item.value !== undefined && item.value !== 0);
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)',
+        zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '20px'
+      }}
+    >
+      <div 
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#0f172a', border: '1px solid rgba(99, 102, 241, 0.4)',
+          borderRadius: '16px', width: '100%', maxWidth: '450px',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', overflow: 'hidden'
+        }}
+      >
+        <div style={{ padding: '20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, color: '#f1f5f9', fontSize: '1.25rem' }}>🧮 Score Calculation</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+        </div>
+        <div style={{ padding: '24px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {items.map((item, idx) => (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: item.isBase ? '#cbd5e1' : '#94a3b8', fontSize: '0.9rem' }}>{item.label}</span>
+                <span style={{ 
+                  color: item.isBase ? '#22c55e' : '#ef4444', 
+                  fontWeight: '600',
+                  fontFamily: 'monospace'
+                }}>
+                  {item.isBase ? `+${item.value}` : `-${item.value}`}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 'bold', color: '#f1f5f9' }}>Final Score</span>
+            <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#6366f1' }}>
+              {Math.max(1, Math.min(100, Math.round(100 - items.filter(i => !i.isBase).reduce((acc, i) => acc + i.value, 0))))}/100
+            </span>
+          </div>
+        </div>
+        <button 
+          onClick={onClose}
+          style={{
+            width: '100%', padding: '14px', background: 'rgba(99, 102, 241, 0.1)',
+            border: 'none', borderTop: '1px solid #1e293b', color: '#818cf8',
+            fontWeight: '600', cursor: 'pointer'
+          }}
+        >
+          Got it
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ResultsPage() {
   const navigate = useNavigate();
   const [previewImage, setPreviewImage] = useState(null);
+  const [calcBreakdown, setCalcBreakdown] = useState(null);
   
   // Load results from localStorage (set by App.jsx after search)
+// ... (rest of the code update will be in the next chunk if needed, but I'll try to fit it)
   let results = [];
   let jobInfo = {};
   try {
@@ -139,6 +213,7 @@ function ResultsPage() {
                 <th style={thStyle}>Tidal Level (m)</th>
                 <th style={thStyle}>☁️ Cloud Cover</th>
                 <th style={thStyle}>Score</th>
+                <th style={thStyle}>Calculation</th>
                 <th style={thStyle}>Scene ID</th>
                 <th style={thStyle}>Copernicus</th>
               </tr>
@@ -211,6 +286,28 @@ function ResultsPage() {
                       {result.score}/100
                     </span>
                   </td>
+                  <td style={tdStyle}>
+                    {result.score_breakdown ? (
+                      <button
+                        onClick={() => setCalcBreakdown(result.score_breakdown)}
+                        style={{
+                          background: 'rgba(99,102,241,0.1)',
+                          border: '1px solid rgba(99, 102, 241, 0.3)',
+                          color: '#a5b4fc',
+                          borderRadius: '6px',
+                          padding: '4px 8px',
+                          fontSize: '0.75rem',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        🔍 Details
+                      </button>
+                    ) : (
+                      <span style={{ color: '#475569', fontSize: '0.75rem' }}>N/A</span>
+                    )}
+                  </td>
                   <td style={{ ...tdStyle, maxWidth: '200px' }}>
                     <span title={result.scene_id} style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {result.scene_id}
@@ -241,6 +338,14 @@ function ResultsPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Score Calculation Modal */}
+      {calcBreakdown && (
+        <ScoreCalculationModal
+          breakdown={calcBreakdown}
+          onClose={() => setCalcBreakdown(null)}
+        />
       )}
 
       {/* Lightbox Overlay */}
