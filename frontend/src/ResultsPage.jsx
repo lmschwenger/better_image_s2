@@ -67,12 +67,12 @@ function ScoreCalculationModal({ breakdown, onClose }) {
   
   const items = [
     { label: "Initial Score", value: breakdown.initial_score, isBase: true },
-    { label: "Cloud Penalty", value: breakdown.cloud_penalty },
-    { label: "Sun Glint Penalty", value: breakdown.sun_glint_penalty },
-    { label: "Snow/Ice Penalty", value: breakdown.snow_ice_penalty },
-    { label: "Aerosol Penalty", value: breakdown.aerosol_penalty },
-    { label: "Turbidity Penalty", value: breakdown.turbidity_penalty },
-    { label: "Tide Penalty", value: breakdown.tide_penalty },
+    { label: "Cloud Penalty", value: breakdown.cloud_penalty, raw: breakdown.cloud_percent, unit: '%' },
+    { label: "Sun Glint Penalty", value: breakdown.sun_glint_penalty, raw: breakdown.sun_elevation, unit: '°' },
+    { label: "Snow/Ice Penalty", value: breakdown.snow_ice_penalty, raw: breakdown.snow_ice_percent, unit: '%' },
+    { label: "Aerosol Penalty", value: breakdown.aerosol_penalty, raw: breakdown.aot_mean },
+    { label: "Turbidity Penalty", value: breakdown.turbidity_penalty, raw: breakdown.turbidity_index },
+    { label: "Tide Penalty", value: breakdown.tide_penalty, raw: breakdown.tide_level, unit: 'm' },
   ].filter(item => item.value !== undefined && item.value !== 0);
 
   return (
@@ -101,7 +101,9 @@ function ScoreCalculationModal({ breakdown, onClose }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {items.map((item, idx) => (
               <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: item.isBase ? '#cbd5e1' : '#94a3b8', fontSize: '0.9rem' }}>{item.label}</span>
+                <span style={{ color: item.isBase ? '#cbd5e1' : '#94a3b8', fontSize: '0.9rem' }}>
+                  {item.label} {item.raw !== undefined && <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>({item.raw}{item.unit || ''})</span>}
+                </span>
                 <span style={{ 
                   color: item.isBase ? '#22c55e' : '#ef4444', 
                   fontWeight: '600',

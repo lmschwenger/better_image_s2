@@ -15,6 +15,7 @@ def calculate_coastal_score(openeo_metadata: Dict, tide_level: float, task_type:
     if cloud_cover_percent is not None:
         penalty = cloud_cover_percent * 0.8
         current_score -= penalty
+        breakdown["cloud_percent"] = round(cloud_cover_percent, 1)
         breakdown["cloud_penalty"] = round(penalty, 2)
     
     # 2. Sun Glint Penalty
@@ -26,6 +27,7 @@ def calculate_coastal_score(openeo_metadata: Dict, tide_level: float, task_type:
         elif sun_elevation > 50:
             penalty = 10
         current_score -= penalty
+        breakdown["sun_elevation"] = round(sun_elevation, 1)
         breakdown["sun_glint_penalty"] = penalty
             
     # 3. Snow / Ice Penalty
@@ -33,6 +35,7 @@ def calculate_coastal_score(openeo_metadata: Dict, tide_level: float, task_type:
     if snow_ice is not None:
         penalty = snow_ice * 1.5
         current_score -= penalty
+        breakdown["snow_ice_percent"] = round(snow_ice, 1)
         breakdown["snow_ice_penalty"] = round(penalty, 2)
         
     # 4. Atmospheric Aerosols (AOT)
@@ -40,22 +43,24 @@ def calculate_coastal_score(openeo_metadata: Dict, tide_level: float, task_type:
     if aot is not None:
         penalty = max(0, (aot - 80) * 0.125)
         current_score -= penalty
+        breakdown["aot_mean"] = round(aot, 1)
         breakdown["aerosol_penalty"] = round(penalty, 2)
         
     # 5. Turbidity / Brightness
+    # Increased threshold to 800 and reduced slope (0.03) to be less aggressive.
     turbidity = openeo_metadata.get('turbidity_index') 
     if turbidity is not None:
-        penalty = min(30, max(0, (turbidity - 500) * 0.05))
+        penalty = min(30, max(0, (turbidity - 800) * 0.03))
         current_score -= penalty
+        breakdown["turbidity_index"] = round(turbidity, 1)
         breakdown["turbidity_penalty"] = round(penalty, 2)
 
     # 6. Tide Level Penalty (Task Specific)
-    # For SDB (Bathymetry), lower tides are significantly better.
     if task_type == "SDB":
-        # If tide is > 0.5m, start penalizing
         if tide_level > 0.5:
             penalty = min(25, (tide_level - 0.5) * 10)
             current_score -= penalty
+            breakdown["tide_level"] = round(tide_level, 2)
             breakdown["tide_penalty"] = round(penalty, 2)
         
     final_score = max(1, min(100, int(current_score)))
