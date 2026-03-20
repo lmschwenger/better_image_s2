@@ -1,0 +1,2 @@
+ID: S2B_MSIL2A_20240104T094319_R036_T33SVV_20240104T130832
+Thumbnail URL: https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=sentinel-2-l2a&item=S2B_MSIL2A_20240104T094319_R036_T33SVV_20240104T130832&assets=visual&asset_bidx=visual%7C1%2C2%2C3&nodata=0&format=png

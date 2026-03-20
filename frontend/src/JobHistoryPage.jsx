@@ -67,6 +67,9 @@ function JobHistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isBooting, setIsBooting] = useState(false);
+  const [jobLogs, setJobLogs] = useState(null);
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [isLogsLoading, setIsLogsLoading] = useState(false);
 
   const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
   const token = localStorage.getItem('coastal_token');
@@ -142,6 +145,24 @@ function JobHistoryPage() {
       setJobs(jobs.filter(j => j.id !== jobId));
     } catch (err) {
       alert("Error: " + err.message);
+    }
+  };
+
+  const handleViewLogs = async (jobId) => {
+    setIsLogsLoading(true);
+    setIsLogModalOpen(true);
+    setJobLogs(null);
+    try {
+      const res = await fetch(`${apiUrl}/jobs/${jobId}/logs`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setJobLogs(data.logs);
+    } catch (err) {
+      console.error("Failed to fetch logs", err);
+      setJobLogs("Failed to load logs.");
+    } finally {
+      setIsLogsLoading(false);
     }
   };
 
@@ -322,9 +343,128 @@ function JobHistoryPage() {
                     Show on Map
                   </button>
                 </div>
+                
+                <button
+                  onClick={() => handleViewLogs(job.id)}
+                  style={{
+                    marginTop: '10px',
+                    width: '100%',
+                    background: 'rgba(99, 102, 241, 0.1)',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    borderRadius: '6px',
+                    color: '#a5b4fc',
+                    cursor: 'pointer',
+                    padding: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                  }}
+                >
+                  📋 View Diagnostics
+                </button>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Log Modal */}
+      {isLogModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(2, 6, 23, 0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: '#0f172a',
+            border: '1px solid rgba(99, 102, 241, 0.3)',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '800px',
+            maxHeight: '80vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+          }}>
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid rgba(99, 102, 241, 0.2)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h3 style={{ margin: 0, color: '#e2e8f0', fontSize: '1.1rem' }}>Past Search Diagnostic Logs</h3>
+              <button 
+                onClick={() => setIsLogModalOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  fontSize: '1.5rem',
+                  cursor: 'pointer',
+                  padding: '4px'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div style={{
+              padding: '20px',
+              overflowY: 'auto',
+              flex: 1,
+              background: '#020617',
+              margin: '0 20px 20px 20px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.05)'
+            }}>
+              {isLogsLoading ? (
+                <div style={{ color: '#6366f1', textAlign: 'center', padding: '40px' }}>
+                  ⏳ Loading legacy logs...
+                </div>
+              ) : (
+                <pre style={{
+                  margin: 0,
+                  color: '#10b981',
+                  fontFamily: '"Fira Code", monospace',
+                  fontSize: '0.85rem',
+                  lineHeight: '1.5',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {jobLogs || "No logs available for this past job."}
+                </pre>
+              )}
+            </div>
+            
+            <div style={{
+              padding: '16px 20px',
+              borderTop: '1px solid rgba(99, 102, 241, 0.2)',
+              textAlign: 'right'
+            }}>
+              <button 
+                onClick={() => setIsLogModalOpen(false)}
+                style={{
+                  background: '#1e293b',
+                  color: '#e2e8f0',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 16px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

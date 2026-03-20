@@ -48,6 +48,9 @@ build/
 # Secrets
 secrets/
 
+# Assets & Data
+backend/data/
+
 # OS generated files
 .DS_Store
 .DS_Store?

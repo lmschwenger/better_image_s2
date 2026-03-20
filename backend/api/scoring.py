@@ -42,10 +42,16 @@ def calculate_coastal_score(openeo_metadata: Dict, tide_level: float, task_type:
         aot_penalty = max(0, (aot - 80) * 0.125)
         score -= aot_penalty
         
-    # 5. Turbidity / Brightness (Optional)
-    water_brightness = openeo_metadata.get('turbidity_index') 
-    if water_brightness is not None:
-        score -= (water_brightness * 20)
+    # 5. Turbidity / Brightness (Continuous)
+    # High reflectance in Red/Green bands over water indicates turbidity or shallow sand clouds.
+    # Sentinel-2 reflectance values are scaled by 10,000.
+    # We apply a penalty for values > 500 (5% reflectance).
+    turbidity = openeo_metadata.get('turbidity_index') 
+    if turbidity is not None:
+        logger.info(f"AOI Turbidity/Brightness index: {turbidity}")
+        # Every 100 units above 500 is a 5 point penalty (capped at 30)
+        turb_penalty = min(30, max(0, (turbidity - 500) * 0.05))
+        score -= turb_penalty
         
     # Bound score between 1 and 100
     final_score = max(1, min(100, int(score)))

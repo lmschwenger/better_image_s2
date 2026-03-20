@@ -304,7 +304,8 @@ def process_aoi(
                         'cloud_cover_aoi': scene['cloud_cover_aoi'],
                         'sun_elevation': scene['sun_elevation'],
                         'snow_ice_percent': scene['snow_ice_percent'],
-                        'aot_mean': scene['aot_mean']
+                        'aot_mean': scene['aot_mean'],
+                        'turbidity_index': scene['turbidity_index']
                     },
                     tide_level=tide_level,
                     task_type=query.task_type

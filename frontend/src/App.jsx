@@ -110,6 +110,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState(null);
   const [isBooting, setIsBooting] = useState(false);
+  const [jobLogs, setJobLogs] = useState(null);
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [isLogsLoading, setIsLogsLoading] = useState(false);
 
   const featureGroupRef = useRef();
   const navigate = useNavigate();
@@ -188,6 +191,26 @@ function App() {
 
   const handleDeleted = (e) => {
     setAoi(null);
+  };
+
+  const handleViewLogs = async (jobId) => {
+    setIsLogsLoading(true);
+    setIsLogModalOpen(true);
+    setJobLogs(null);
+    try {
+      const token = localStorage.getItem('coastal_token');
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      const res = await fetch(`${apiUrl}/jobs/${jobId}/logs`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setJobLogs(data.logs);
+    } catch (err) {
+      console.error("Failed to fetch logs", err);
+      setJobLogs("Failed to load logs.");
+    } finally {
+      setIsLogsLoading(false);
+    }
   };
 
   const handleQuery = async () => {
@@ -443,9 +466,127 @@ function App() {
                 View Results →
               </button>
             )}
+            <button
+              onClick={() => handleViewLogs(jobInfo.id || jobInfo.job_id)}
+              style={{
+                marginTop: '8px',
+                width: '100%',
+                background: 'rgba(99, 102, 241, 0.15)',
+                border: '1px solid rgba(99, 102, 241, 0.4)',
+                borderRadius: '8px',
+                color: '#a5b4fc',
+                cursor: 'pointer',
+                padding: '8px',
+                fontSize: '0.8rem',
+                fontWeight: '600',
+              }}
+            >
+              📋 View Diagnostic Logs
+            </button>
           </div>
         )}
       </div>
+
+      {/* Log Modal */}
+      {isLogModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(2, 6, 23, 0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: '#0f172a',
+            border: '1px solid rgba(99, 102, 241, 0.3)',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '800px',
+            maxHeight: '80vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+          }}>
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid rgba(99, 102, 241, 0.2)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h3 style={{ margin: 0, color: '#e2e8f0', fontSize: '1.1rem' }}>Search Diagnostic Logs</h3>
+              <button 
+                onClick={() => setIsLogModalOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  fontSize: '1.5rem',
+                  cursor: 'pointer',
+                  padding: '4px'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div style={{
+              padding: '20px',
+              overflowY: 'auto',
+              flex: 1,
+              background: '#020617',
+              margin: '0 20px 20px 20px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.05)'
+            }}>
+              {isLogsLoading ? (
+                <div style={{ color: '#6366f1', textAlign: 'center', padding: '40px' }}>
+                  ⏳ Fetching logs from secure database...
+                </div>
+              ) : (
+                <pre style={{
+                  margin: 0,
+                  color: '#10b981',
+                  fontFamily: '"Fira Code", monospace',
+                  fontSize: '0.85rem',
+                  lineHeight: '1.5',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {jobLogs || "No logs available for this job."}
+                </pre>
+              )}
+            </div>
+            
+            <div style={{
+              padding: '16px 20px',
+              borderTop: '1px solid rgba(99, 102, 241, 0.2)',
+              textAlign: 'right'
+            }}>
+              <button 
+                onClick={() => setIsLogModalOpen(false)}
+                style={{
+                  background: '#1e293b',
+                  color: '#e2e8f0',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 16px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Map Area */}
       <div className="map-container">

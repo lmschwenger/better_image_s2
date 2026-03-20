@@ -10,11 +10,17 @@ MPC_STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 
 def fetch_aoi_stats(item_id: str, bbox: list) -> dict:
     """
-    Fetches AOI-specific statistics for Aerosols (AOT) and land cover (SCL).
+    Fetches AOI-specific statistics for Aerosols (AOT), land cover (SCL), and brightness (B03/B04).
     SCL Classes: 8 (Medium Cloud), 9 (High Cloud), 10 (Thin Cirrus), 11 (Snow/Ice).
     """
     bbox_str = f"{bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]}"
-    res_stats = {"aot_mean": None, "cloud_percent": None, "snow_percent": None}
+    res_stats = {
+        "aot_mean": None, 
+        "cloud_percent": None, 
+        "snow_percent": None,
+        "green_mean": None,
+        "red_mean": None
+    }
     
     # 1. Fetch AOT (Atmospheric Aerosol)
     aot_url = f"https://planetarycomputer.microsoft.com/api/data/v1/item/statistics?collection=sentinel-2-l2a&item={item_id}&assets=AOT&bbox={bbox_str}"
@@ -50,6 +56,20 @@ def fetch_aoi_stats(item_id: str, bbox: list) -> dict:
     except Exception as e:
         logger.debug(f"SCL stats failed for {item_id}: {e}")
         
+    # 3. Fetch Brightness (Green/Red bands) for Turbidity estimation
+    # We use these to see how 'bright' or 'murky' the water is.
+    for band in ["B03", "B04"]:
+        url = f"https://planetarycomputer.microsoft.com/api/data/v1/item/statistics?collection=sentinel-2-l2a&item={item_id}&assets={band}&bbox={bbox_str}"
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as res:
+                data = json.loads(res.read())
+                mean_val = data.get(f"{band}_b1", {}).get("mean")
+                if band == "B03": res_stats["green_mean"] = mean_val
+                else: res_stats["red_mean"] = mean_val
+        except Exception as e:
+            logger.debug(f"{band} stats failed for {item_id}: {e}")
+
     return res_stats
 
 def search_sentinel2_scenes(geojson_aoi: dict, start_date: str, end_date: str, max_items: int = 20):
@@ -120,12 +140,18 @@ def search_sentinel2_scenes(geojson_aoi: dict, start_date: str, end_date: str, m
             bbox_str = f"{min_lon},{min_lat},{max_lon},{max_lat}"
             cropped_thumbnail_url = f"https://planetarycomputer.microsoft.com/api/data/v1/item/bbox/{bbox_str}.png?collection=sentinel-2-l2a&item={item.id}&assets=visual"
             
+            # Calculate a basic turbidity / brightness index from Red and Green bands
+            green_m = aoi_stats.get("green_mean")
+            red_m = aoi_stats.get("red_mean")
+            turbidity = (green_m + red_m) / 2.0 if (green_m is not None and red_m is not None) else None
+            
             scenes.append({
                 "id": item.id,
                 "cloud_cover_aoi": cloud_aoi,
                 "sun_elevation": sun_elev,
                 "snow_ice_percent": snow_aoi,
                 "aot_mean": aoi_stats.get("aot_mean"),
+                "turbidity_index": turbidity,
                 "datetime": props.get("datetime"),
                 "thumbnail_url": cropped_thumbnail_url
             })
