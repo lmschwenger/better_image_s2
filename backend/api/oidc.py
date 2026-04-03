@@ -28,3 +28,14 @@ oauth.register(
     api_base_url='https://api.github.com/',
     client_kwargs={'scope': 'user:email'},
 )
+
+# --- Copernicus (CDSE) Configuration ---
+oauth.register(
+    name='copernicus',
+    client_id=config('COPERNICUS_CLIENT_ID', default=None),
+    client_secret=config('COPERNICUS_CLIENT_SECRET', default=None),
+    server_metadata_url='https://identity.dataspace.copernicus.eu/auth/realms/CDSE/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile offline_access'
+    }
+)

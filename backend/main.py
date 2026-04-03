@@ -25,6 +25,9 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Coastal S2 App API")
 
+from api.download import router as download_router
+app.include_router(download_router)
+
 # Authlib requires SessionMiddleware to track OAuth state (CSRF PROTECTION)
 app.add_middleware(
     SessionMiddleware, 
@@ -145,7 +148,13 @@ async def auth_callback(provider: str, request: Request, db: Session = Depends(g
         db.add(user)
         db.commit()
         db.refresh(user)
+        
+    if provider == 'copernicus':
+        user.copernicus_access_token = token.get('access_token')
+        user.copernicus_refresh_token = token.get('refresh_token')
+        db.commit()
     
+
     # Generate our app's JWT token
     app_token = create_access_token({"sub": str(user.id)})
     
@@ -174,7 +183,8 @@ def get_me(user: User = Depends(require_user)):
         "display_name": user.display_name,
         "free_credits": user.free_credits,
         "purchased_credits": user.purchased_credits,
-        "is_unlimited": user.is_unlimited
+        "is_unlimited": user.is_unlimited,
+        "is_copernicus_connected": bool(user.copernicus_access_token)
     }
 
 # ─── Jobs Endpoints ───

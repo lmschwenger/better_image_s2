@@ -18,6 +18,10 @@ class User(Base):
     last_free_credit_grant = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     is_unlimited = Column(Boolean, default=False)
 
+    # Copernicus Authentication
+    copernicus_access_token = Column(String, nullable=True)
+    copernicus_refresh_token = Column(String, nullable=True)
+
     jobs = relationship("Job", back_populates="owner")
 
 

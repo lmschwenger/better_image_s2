@@ -140,6 +140,66 @@ function ResultsPage() {
   const navigate = useNavigate();
   const [previewImage, setPreviewImage] = useState(null);
   const [calcBreakdown, setCalcBreakdown] = useState(null);
+  const [user, setUser] = useState(null);
+  const [selectedScenes, setSelectedScenes] = useState(new Set());
+  const [isDownloading, setIsDownloading] = useState(false);
+  
+  useEffect(() => {
+    const token = localStorage.getItem('coastal_token');
+    if (token) {
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      fetch(`${apiUrl}/me`, { headers: { "Authorization": `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => { if (data.id) setUser(data); })
+      .catch(err => console.error("Failed to fetch user state", err));
+    }
+  }, []);
+
+  const handleCopernicusAuth = () => {
+    window.location.href = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/auth/login/copernicus`;
+  };
+
+  const handleDownload = async () => {
+    if (selectedScenes.size === 0) return;
+    setIsDownloading(true);
+    
+    const dates = Array.from(selectedScenes).map(id => {
+       const res = results.find(r => r.scene_id === id);
+       return res.datetime;
+    });
+    const uniqueDates = [...new Set(dates)];
+    
+    try {
+        const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+        const token = localStorage.getItem('coastal_token');
+        const reqBody = {
+            aoi_geojson: jobInfo.aoi_geojson,
+            dates: uniqueDates
+        };
+        const res = await fetch(`${apiUrl}/download-scenes`, {
+            method: 'POST',
+            headers: { 
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(reqBody)
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+           alert("Download failed: " + data.detail);
+        } else {
+           alert("Download job created with ID: " + data.job_id + "\n\n" + data.message);
+           setSelectedScenes(new Set());
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Failed to communicate with the server.");
+    } finally {
+        setIsDownloading(false);
+    }
+  };
   
   // Load results from localStorage (set by App.jsx after search)
 // ... (rest of the code update will be in the next chunk if needed, but I'll try to fit it)
@@ -191,6 +251,29 @@ function ResultsPage() {
             >
               ← Back to Map
             </button>
+            <span style={{flex: 1}}></span>
+            {user && !user.is_copernicus_connected && (
+              <button 
+                onClick={handleCopernicusAuth} 
+                style={copernicusBtnStyle}
+                title="Log in to Copernicus CDSE to enable OpenEO downloads"
+              >
+                🔗 Connect CDSE to Download
+              </button>
+            )}
+            {user && user.is_copernicus_connected && (
+              <button 
+                onClick={handleDownload} 
+                disabled={selectedScenes.size === 0 || isDownloading} 
+                style={{
+                  ...downloadBtnStyle, 
+                  opacity: (selectedScenes.size === 0 || isDownloading) ? 0.5 : 1,
+                  cursor: (selectedScenes.size === 0 || isDownloading) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {isDownloading ? '⏳ Triggering Job...' : `⬇️ Download Selected (${selectedScenes.size})`}
+              </button>
+            )}
           </div>
           <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#f1f5f9' }}>🛰️ Coastal Sentinel — Results</h1>
           <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#64748b' }}>
@@ -209,6 +292,17 @@ function ResultsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid #334155' }}>
+                <th style={{...thStyle, width: '40px', textAlign: 'center'}}>
+                  <input 
+                      type="checkbox"
+                      checked={results.length > 0 && selectedScenes.size === results.length}
+                      onChange={(e) => {
+                          if (e.target.checked) setSelectedScenes(new Set(results.map(r => r.scene_id)));
+                          else setSelectedScenes(new Set());
+                      }}
+                      style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
+                  />
+                </th>
                 <th style={thStyle}>#</th>
                 <th style={thStyle}>Preview</th>
                 <th style={thStyle}>Datetime</th>
@@ -232,6 +326,19 @@ function ResultsPage() {
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
                   onMouseLeave={e => e.currentTarget.style.background = idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'}
                 >
+                  <td style={{...tdStyle, textAlign: 'center'}}>
+                    <input 
+                        type="checkbox"
+                        checked={selectedScenes.has(result.scene_id)}
+                        onChange={(e) => {
+                            const newSet = new Set(selectedScenes);
+                            if (e.target.checked) newSet.add(result.scene_id);
+                            else newSet.delete(result.scene_id);
+                            setSelectedScenes(newSet);
+                        }}
+                        style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
+                    />
+                  </td>
                   <td style={tdStyle}>{idx + 1}</td>
                   <td style={tdStyle}>
                     {result.thumbnail_url ? (
@@ -423,6 +530,28 @@ const thStyle = {
 const tdStyle = {
   padding: '12px 16px',
   verticalAlign: 'middle',
+};
+
+const copernicusBtnStyle = {
+  background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+  border: 'none',
+  borderRadius: '8px',
+  color: 'white',
+  padding: '8px 16px',
+  fontSize: '0.9rem',
+  fontWeight: '600',
+  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+};
+
+const downloadBtnStyle = {
+  background: 'linear-gradient(135deg, #22c55e 0%, #10b981 100%)',
+  border: 'none',
+  borderRadius: '8px',
+  color: 'white',
+  padding: '8px 16px',
+  fontSize: '0.9rem',
+  fontWeight: '600',
+  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
 };
 
 export default ResultsPage;
