@@ -156,7 +156,10 @@ function ResultsPage() {
   }, []);
 
   const handleCopernicusAuth = () => {
-    window.location.href = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/auth/login/copernicus`;
+    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+    // Usually VITE_API_URL already contains /api at the end, so we remove it
+    const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+    window.location.href = `${baseUrl}/api/auth/login/copernicus`;
   };
 
   const handleDownload = async () => {
